@@ -1,39 +1,55 @@
 
+newStack = function() { return new Array(); }
 
-function Stack() {
-	this.cells = new Array()
-}
-
-Stack.prototype.error = function(e) {
-	throw e
-}
-
-Stack.prototype.push = function(e) {
-	this.cells.push(e)
-}
-
-Stack.prototype.pop = function() {
-	if(this.cells.length == 0)
-		this.error("Stack Underflow - Pop")
-	var v = this.cells.pop()
-	return v
-}
-
-Stack.prototype.top = function() {
-	if(this.cells.length == 0)
-		this.error("Stack Underflow - Top")
-	return this.cells[this.cells.length - 1]
-}
-
-Stack.prototype.toString = function() {
-	if(this.cells.length == 0) return ""
-
-	var s = '( '
-	for(var i = this.cells.length-1; i > 0; i--) {
-		s = s.concat(this.cells[i])
-		s = s.concat(', ')
+newStacks = function(names) {
+	var s = {};
+	for(var i = 0; i < names.length; i++) {
+		s[names[i]] = newStack();
 	}
-	s = s.concat(this.cells[0])
-	s = s.concat(' )')
-	return s
+	return s;
 }
+
+push = function(cells, e) {
+	cells.push(e);
+}
+
+pop = function(cells) {
+	if(cells.length == 0) {
+		throw "Underflow";
+	}
+	var v = cells.pop();
+	return v;
+}
+
+top = function(cells) {
+	if(cells.length == 0) {
+		throw "Underflow";
+	}
+	return cells[cells.length - 1];
+}
+
+tos = function(cells) {
+	return cells.length - 1;
+}
+
+toString = function(cells) {
+	if(cells.length == 0) return "";
+
+	var s = '( ';
+	for(var i = cells.length-1; i > 0; i--) {
+		s = s.concat(cells[i]);
+		s = s.concat(', ');
+	}
+	s = s.concat(cells[0]);
+	s = s.concat(' )');
+	return s;
+}
+
+exports.newStack = newStack;
+exports.newStacks = newStacks;
+exports.push = push;
+exports.pop = pop;
+exports.top = top;
+exports.tos = tos;
+exports.toString = toString;
+
