@@ -824,20 +824,6 @@ cpu.primary(
 )
 
 cpu.primary(
-	  'cls'
-	, function(c) { /* ( -- ) clear the html from the output divs */
-		var s = c.pop();
-		if(s == "cons")
-			kill_all_children(c.cons);
-		else if (s == "log")
-			kill_all_children(c.log);
-		else if (s == "history")
-			kill_all_children(c.history);
-		return c.next(c);
-	}
-)
-
-cpu.primary(
 	'(semi)' 
 	, function(c) { /* ( -- ) execute semi */
 		return c.semi(c);
@@ -893,9 +879,6 @@ cpu.primary(
 		return c.next(c);
 	}
 )
-
-
-
 
 cpu.secondary(
 	'?search'
@@ -1187,11 +1170,7 @@ cpu.parse(': ;code  ." $$" token <token (js) drop postpone (;code) ,, ; immediat
 cpu.parse(': ;js ." $$" token <token  ." ; return c.next(c);" + (js) if here swap , !CA f >mode here 2 + <entry ! then ; immediate')
 
 // using ;js ;js
-cpu.parse(': http_dict ;js  c.get_and_parse(c.pop()); $$')
-cpu.parse(': document ;js c.push(document) $$')
 cpu.parse(': . ;js  var k = c.pop(); c.push(c.pop()[k]) $$')
-cpu.parse(': byid ;js c.push(document.getElementById(c.pop())) $$')
-cpu.parse(': baseuri document ." baseURI" . ;')
 cpu.parse(': last ;js var k = c.pop(); c.push(c.pop().lastIndexOf(k)) $$')
 cpu.parse(': slice ;js var t = c.pop(); var e = c.pop(); var s = c.pop(); c.push(t.slice(s, e)); $$')
 cpu.parse(': {} ;js c.push({}) $$')

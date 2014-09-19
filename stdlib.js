@@ -96,11 +96,6 @@ function tokenize(terminator, untokenised_text) {
 	return Array(token, untokenised_text);
 }
 
-function println(e, t, style) {
-	if(style == undefined)
-		style = {};
-	e.appendChild(elem('p', {}, style,  t))
-}
 
 function strstr(t, n) {
 	var s = ""
@@ -109,64 +104,5 @@ function strstr(t, n) {
 	return s	
 }
 
-function insertAfter(parent_node, new_node, previous_sibling) {
-	if(previous_sibling.nextSibling)
-		parent_node.insertBefore(new_node, previous_sibling.nextSibling);
-	else
-		parent_node.appendChild(new_node);
-	parent_node.innerHTML =  '' + parent_node.innerHTML; // makes it work in IE !
-}
 
-function kill_all_children(e) {
-	while(e.firstChild) {
-		e.removeChild(e.firstChild)
-	}
-}
 
-function copy_ih(target, source) {
-	if(target && source) {
-		target.innerHTML= source.innerHTML;
-		return true;
-	}
-	return false;
-}
-
-function elem(name, attrs, style, text) {
-    var e = document.createElement(name);
-    if (attrs) {
-        for (key in attrs) {
-            if (key == 'class') {
-                e.className = attrs[key];
-            } else if (key == 'id') {
-                e.id = attrs[key];
-            } else {
-                e.setAttribute(key, attrs[key]);
-            }
-        }
-    }
-    if (style) {
-        for (key in style) {
-            e.style[key] = style[key];
-        }
-    }
-    if (text) {
-        e.appendChild(document.createTextNode(text));
-    }
-    return e;
-}
-
-function http_request(url) {
-	if (typeof XMLHttpRequest === "undefined")
-		XMLHttpRequest = function () {
-			try { return new ActiveXObject("Msxml2.XMLHTTP.6.0"); } catch (e) {};
-			try { return new ActiveXObject("Msxml2.XMLHTTP.3.0"); } catch (e) {};
-    		try { return new ActiveXObject("Microsoft.XMLHTTP"); }  catch (e) {};
-    		throw new Error("This browser does not support XMLHttpRequest.");
-  		};
-	
-	var x = new XMLHttpRequest();
-	
-	x.open('GET', url, false);
-	x.send()
-	return x
-}

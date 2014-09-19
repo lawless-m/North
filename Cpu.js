@@ -7,11 +7,6 @@ function Cpu() {
 	this.r = new Stack()
 	this.d = new Stack()
 	this.j = new Stack()
-	this.cons = document.getElementById('console')
-	this.kbd = document.getElementById('keyboard')
-	this.stack = document.getElementById('stack')
-	this.history = document.getElementById('history')
-	this.words = document.getElementById('words')
 	this.mode = false // execute mode
 	this.state = false // executing
 	this.vocabulary = 'context'
@@ -19,67 +14,30 @@ function Cpu() {
 	this.token = ""
 }
 
-Cpu.prototype.drawstack = function() {
-	if(!do_drawstack) return
-	kill_all_children(this.stack)
-	for(var i = this.d.cells.length-1; i>=0; i--) {
-		if(this.d.cells[i] == undefined) {
-			println(this.stack, "undefined")
-		} else if(this.d.cells[i].constructor == Array) {
-			println(this.stack, "Array[" + this.d.cells[i].length + "]");
-		} else if(isFunction(this.d.cells[i])) {
-			println(this.stack, this.d.cells[i].toString(), {'color':'green'})
-		} else {
-			println(this.stack, this.d.cells[i].toString())
-		}
-	}
-}
 
 Cpu.prototype.inner = function(pointer, input) {
-	var dp = this.dict.pointer
-	this.pad = input
-	this.i = pointer
+	var dp = this.dict.pointer;
+	this.pad = input;
+	this.i = pointer;
 	var f = this.next(this)
-	var trace = " "
-	var dp_trace = ""
-	var sp4 = '\u00A0\u00A0\u00A0\u00A0'
 	while(isFunction(f)) {
-		if(do_dump) {
-			trace = trace.concat(strstr(sp4, this.r.cells.length))
-			trace = trace.concat(this.cells[this.cfa-4])
-			dp_trace = this.dict.cells[this.dict.pointer]
-			if(dp_trace == undefined)
-				dp_trace = ""
-		}
-
-		f = f(this)
-
-		if(do_dump) {
-			trace = trace.concat(this.d.toString())
-			trace = trace.concat(" [ " + dp_trace + " ]")
-			if(this.words)
-				println(this.words, trace)
-			trace = " "
-			dp_trace = ""
-		}
+		f = f(this);
 	}
-	if(this.history)
-		println(this.history, input)
 	if(this.pad != "")
-		this.dict.pointer = dp
-	return this.pad
+		this.dict.pointer = dp;
+	return this.pad;
 }
 
 Cpu.prototype.colon = function(c) {
-	c.r.push(c.i)
-	c.i = c.cfa
+	c.r.push(c.i);
+	c.i = c.cfa;
 	return c.next(c)
 }
 
 Cpu.prototype.run = function(c) {
-	var code_pointer = c.cells[c.cfa]
-	c.cfa += 1
-	return c.cells[code_pointer]
+	var code_pointer = c.cells[c.cfa];
+	c.cfa += 1;
+	return c.cells[code_pointer];
 }
 
 Cpu.prototype.next = function(c) {
@@ -105,7 +63,6 @@ Cpu.prototype.semi = function(c) {
 Cpu.prototype.wa = function(k) {
 	return this.dict.wa(this.vocabulary, k)
 }
-
 
 Cpu.prototype.ca = function(k) {
 	return this.dict.ca(this.vocabulary, k)
@@ -136,12 +93,10 @@ Cpu.prototype.code_address = function(k) {
 
 Cpu.prototype.push = function(v) {
 	this.d.push(v)
-	this.drawstack()
 }
 
 Cpu.prototype.pop = function() {
 	var v = this.d.pop()
-	this.drawstack()
 	return v
 }
 
@@ -184,13 +139,3 @@ Cpu.prototype.allot = function(n) {
 	this.dict.pointer += n;
 	return a
 }
-
-Cpu.prototype.get_and_parse = function(url) {
-	var dp = this.dict.pointer;
-	var entry = this.dict.entry;
-	
-	response = http_request(url);
-	if(response.responseText != "") {
-		this.parse(response.responseText)
-	}
-} 

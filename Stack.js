@@ -5,7 +5,6 @@ function Stack() {
 }
 
 Stack.prototype.error = function(e) {
-	alert(e)
 	throw e
 }
 
