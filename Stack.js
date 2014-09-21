@@ -1,55 +1,44 @@
 
-newStack = function() { return new Array(); }
+newStack = function() { 
+	return {
+	 	  cells: new Array()
+	
+		, push: function(e) { 
+			this.cells.push(e);
+		}
+		
+		, pop: function() {
+			if(this.cells.length == 0) {
+				throw "Underflow";
+			}
+			return this.cells.pop()
+		}
 
-newStacks = function(names) {
-	var s = {};
-	for(var i = 0; i < names.length; i++) {
-		s[names[i]] = newStack();
+		, tos: function() {
+			return this.cells.length - 1;
+		}
+	
+		, top: function() {
+			if(this.cells.length == 0) {
+				throw "Underflow";
+			}
+			return this.cells[this.tos()];
+		}
+
+		, toString: function() {
+			if(this.cells.length == 0) return "";
+
+			var s = '( ';
+			for(var i = this.cells.length-1; i > 0; i--) {
+				s = s.concat(this.cells[i]);
+				s = s.concat(', ');
+			}
+			s = s.concat(this.cells[0]);
+			s = s.concat(' )');
+			return s;
+		}
 	}
-	return s;
 }
 
-push = function(cells, e) {
-	cells.push(e);
-}
-
-pop = function(cells) {
-	if(cells.length == 0) {
-		throw "Underflow";
-	}
-	var v = cells.pop();
-	return v;
-}
-
-top = function(cells) {
-	if(cells.length == 0) {
-		throw "Underflow";
-	}
-	return cells[cells.length - 1];
-}
-
-tos = function(cells) {
-	return cells.length - 1;
-}
-
-toString = function(cells) {
-	if(cells.length == 0) return "";
-
-	var s = '( ';
-	for(var i = cells.length-1; i > 0; i--) {
-		s = s.concat(cells[i]);
-		s = s.concat(', ');
-	}
-	s = s.concat(cells[0]);
-	s = s.concat(' )');
-	return s;
-}
-
-exports.newStack = newStack;
-exports.newStacks = newStacks;
-exports.push = push;
-exports.pop = pop;
-exports.top = top;
-exports.tos = tos;
-exports.toString = toString;
+exports.new = newStack;
 

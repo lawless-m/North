@@ -4,20 +4,8 @@ var Stack = require('./Stack.js');
 var Cpu = require('./Cpu.js');
 var Fcpu = require('./Fcpu.js');
 
-var states = [];
+n = Cpu.spawn(Stack.new(), Stack.new(), Stack.new(), Dict.new());
+Fcpu.initFcpu(Cpu, Dict, n);
 
-spawn = function() {
-	states.push( {
-		cpu: Cpu.newState(),
-		stacks: Stack.newStacks(['d', 'r', 'j']),
-		dict: Dict.newDict(Dict),
-		ram: []
-	} )
-	return states.length;
-}
-
-spawn();
-
-Fcpu.initFcpu(Cpu, Dict, states[0]);
-
-console.log(states[0]);
+var t = Cpu.States[n].dict.wa(Cpu.States[n].vocabulary, 't');
+Cpu.States[n].dict.cells[Cpu.States[n].dict.cells[t]](Cpu.States[n], Cpu.States[n].dict);

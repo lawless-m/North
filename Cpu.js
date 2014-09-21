@@ -1,48 +1,55 @@
 
+var States = [];
 
-newState = function() {
-	return {
+spawn = function(_d, _r, _j, _dict) {
+	States.push({
 		cfa: 0,
 		i: 0,
 		mode: false,
 		state: false,
 		vocabulary: 'context',
 		pad: '',
-		token: ''
-	};
+		token: '',
+		d : _d,
+		r : _r,
+		j : _j,
+		dict: _dict,
+		ram: []
+	});
+	return States.length - 1;
 }
 
 
-inner = function(state, pointer, input) {
-	var dp = state.dict.pointer;
-	state.cpu.pad = input;
-	state.cpu.i = pointer;
-	var f = next(state);
+inner = function(cpu, dict, pointer, input) {
+	var dp = dict.pointer;
+	state.pad = input;
+	state.i = pointer;
+	var f = next(cpu, dict);
 	while(isFunction(f)) {
-		f = f(state);
+		f = f(cpu, dict);
 	}
-	if(state.cpu.pad != "") {
-		state.dict.pointer = dp;
+	if(cpu.pad != "") {
+		dict.pointer = dp;
 	}
-	return state.cpu.pad;
+	return cpu.pad;
 }
 
-colon = function(state) {
-	state.stacks.r.push(regs.i);
+colon = function(cpu, dict) {
+	cpu.r.push(regs.i);
 	state.cpu.i = state.cpu.cfa;
 	return next(state);
 }
 
-run = function(state) {
-	var code_pointer = state.dict.cells[state.cpu.cfa]; /* this should be the index into the cells of the javascript of that function */
-	state.cpu.cfa += 1;
-	return state.dict.cells[code_pointer]; /* return the javascript function */
+run = function(cpu, dict) {
+	var code_pointer = dict.cells[cpu.cfa]; /* this should be the index into the cells of the javascript of that function */
+	cpu.cfa += 1;
+	return dict.cells[code_pointer]; /* return the javascript function */
 }
 
-next = function(state) {
-	state.cpu.cfa = state.dict.cells[state.cpu.i];  /* state.cpu.i is a pointer to a word */
-	state.cpu.i += 1;
-	return run(state); /* unroll to save native stackspace ? */
+next = function(cpu, dict) {
+	cpu.cfa = dict.cells[cpu.i];  /* state.cpu.i is a pointer to a word */
+	cpu.i += 1;
+	return run(cpu, dict); /* unroll to save native stackspace ? */
 }
 
 semi = function(state) {
@@ -50,13 +57,13 @@ semi = function(state) {
 	return next(state); /* unroll to save native stackspace ? */
 }
 
-parse = function(state) {
+parse = function(cpu, dict, input) {
 	var a;
 	var i;
 	a = i = dict.pointer + 10000;
-	dict.cells[a++] = dict.wa(vocabulary, 'outer');
+	dict.cells[a++] = dict.Dict.wa(dict, vocabulary, 'outer');
 	dict.cells[a++] = undefined;
-	inner(regs, dict, i, input);
+	inner(cpu, dict, i, input);
 	a = i;
 	delete dict.cells[a++];
 	delete dict.cells[a++];
@@ -111,8 +118,9 @@ allot = function(state, n) {
 	return a
 }
 
-exports.newState = newState;
+exports.States = States;
+exports.spawn = spawn;
 exports.primary = primary;
 exports.secondary = secondary;
 exports.colon = colon;
-
+exports.next = next;
