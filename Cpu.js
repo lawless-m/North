@@ -112,6 +112,7 @@ newDict = function() {
 		
 			/* Set the pointer to point to the start of the next Dict Header */
 			this.pointer = p;
+			return this.entry;
 		}
 		, wa: function(vocab, k) { /* the first address of the word *after* the header */
 			var p = this.entry;
@@ -155,7 +156,7 @@ newDict = function() {
 		}
 		
 		, word: function(w_a) {
-			return this.getString(dict, w_a - 3);
+			return this.getString(w_a - 3);
 		}
 		
 		, previous_entry: function(w_a) {
@@ -182,7 +183,7 @@ newDict = function() {
 	return d;
 }
 
-spawn = function(dict) {
+spawn = function() {
 	States.push({
 		run: run,
 		next: next,
@@ -205,64 +206,65 @@ spawn = function(dict) {
 	return n;
 }
 
-inner = function(cpu, dict, pointer, input) {
-	var dp = dict.pointer;
+inner = function(cpu, pointer, input) {
+	var dp = cpu.dict.pointer;
 	cpu.pad = input;
 	cpu.i = pointer;
-	var f = next(cpu, dict);
+	var f = next;
 	while(isFunction(f)) {
-		f = f(cpu, dict);
+		f = f(cpu);
 	}
 	if(cpu.pad != "") {
-		dict.pointer = dp;
+		cpu.dict.pointer = dp;
 	}
 	return cpu.pad;
 }
 
-colon = function(cpu, dict) {
+colon = function(cpu) {
 	cpu.r.push(cpu.i);
 	cpu.i = cpu.cfa;
 	return next;
 }
 
-run = function(cpu, dict) {
-	var code_pointer = dict.cells[cpu.cfa]; /* this should be the index into the cells of the javascript of that function */
+run = function(cpu) {
+	var code_pointer = cpu.dict.cells[cpu.cfa]; /* this should be the index into the cells of the javascript of that function */
 	cpu.cfa += 1;
-	return dict.cells[code_pointer]; /* return the javascript function */
+	console.log(cpu.dict.cells[code_pointer].toString());
+	return cpu.dict.cells[code_pointer]; /* return the javascript function */
 }
 
-next = function(cpu, dict) {
-	cpu.cfa = dict.cells[cpu.i];  /* state.cpu.i is a pointer to a word */
+next = function(cpu) {
+	cpu.cfa = cpu.dict.cells[cpu.i];  /* state.cpu.i is a pointer to a word */
 	cpu.i += 1;
 	return run; /* unroll to save native stackspace ? */
 }
 
-semi = function(state) {
-	state.cpu.i = state.stacks.r.pop();
+semi = function(cpu) {
+	cpu.i = cpu.r.pop();
 	return next; /* unroll to save native stackspace ? */
 }
 
-parse = function(cpu, dict, input) {
+parse = function(cpu, input) {
 	var a;
 	var i;
-	a = i = dict.pointer + 10000;
-	dict.cells[a++] = dict.Dict.wa(dict, vocabulary, 'outer');
-	dict.cells[a++] = undefined;
-	inner(cpu, dict, i, input);
+	a = i = cpu.dict.pointer + 10000;
+	cpu.dict.cells[a++] = cpu.dict.wa(cpu.vocabulary, 'outer');
+	cpu.dict.cells[a++] = undefined;
+	inner(cpu, i, input);
 	a = i;
-	delete dict.cells[a++];
-	delete dict.cells[a++];
+	delete cpu.dict.cells[a++];
+	delete cpu.dict.cells[a++];
 }
 
-code_address = function(state, vocabulary, k) { 
+code_address = function(cpu, vocabulary, k) { 
 /*
 	returns the contents of the word's first cell after the header
 	if k is a $WORD in the current vocabulary
 	it should be an integer
 */
-	var word_addr = state.dict.wa(vocabulary, k);
+	var word_addr = cpu.dict.wa(vocabulary, k);
 	if(word_addr != undefined) {
-		return state.dict.cells[word_addr];
+		return cpu.dict.cells[word_addr];
 	}
 }
 
@@ -285,64 +287,73 @@ secondary = function(Dict, state, word, body, vocabulary) {
 	return word_addr
 }
 
-execute = function(state, word_addr) {
-	var c_a = state.dict.cells[word_addr]
-	var f = state.dict.cells[c_a]
-	f && f(state)	
+execute = function(cpu, word_addr) {
+	var c_a = cpu.dict.cells[word_addr]
+	var f = cpu.dict.cells[c_a]
+	f && f(cpu)	
 }
 
-allot = function(state, n) {
-	var a = state.dict.pointer;
-	state.dict.pointer += n;
+allot = function(cpu, n) {
+	var a = cpu.dict.pointer;
+	cpu.dict.pointer += n;
 	return a;
 }
 
 initFcpu = function(n) {
-	States[n].dict.define(States[n].vocabulary, 'colon', 0, colon);
+	var colon_ca = exports.nfa_to_pfa(States[n].dict.define(States[n].vocabulary, 'colon', 0, colon));
 	var add_to_dict = function(vocab, word_list) {
 		for(var word in word_list) {
 			if(word_list.hasOwnProperty(word)) {
-				States[n].dict.define(States[n].vocabulary, word, 0, word_list[word]);
+				if(isFunction(word_list[word])) {
+					States[n].dict.define(States[n].vocabulary, word, 0, word_list[word]);
+				} else {
+					States[n].dict.define(States[n].vocabulary, word, colon_ca, word_list[word]);
+				}
+				
 			}
 		}
 	}
 	
-	add_to_dict('compile', {
-		';': function(cpu, dict) {  /* ( -- ) finish the definition of a word */
-			dict.cells[dict.pointer++] = dict.wa(cpu.vocabulary, '(semi)');
+	var _wa = function(_word) { return States[n].dict.wa(States[n].vocabulary, _word); };
+	
+	add_to_dict('compile',
+	{
+		';': function(cpu) {  /* ( -- ) finish the definition of a word */
+			cpu.dict.cells[dict.pointer++] = dict.wa(cpu.vocabulary, '(semi)');
 			cpu.mode = false; // execute;
-			dict.cells[dict.pointer] = ";undefined";
-			dict.cells[dict.pointer + Dict.previous_entry_offset] = dict.entry;
+			cpu.dict.cells[dict.pointer] = ";undefined";
+			cpu.dict.cells[dict.pointer + previous_entry_offset] = cpu.entry;
 			return cpu.next;
 		}
 	});
 	
-	add_to_dict('context', {
-		'forget': function(cpu, dict) { /* ( -- ) forget the last defined word */
+	add_to_dict('context', 
+	{
+		'forget': function(cpu) { /* ( -- ) forget the last defined word */
 				dict.forget();
 				return cpu.next;
 		},
 			
-		'bp' : function(cpu, dict) { /* breakpoint */
+		'bp' : function(cpu) { /* breakpoint */
 				return cpu.next;
 		},
 		
-		't': function(cpu, dict) { /* ( -- true ) */
+		't': function(cpu) { /* ( -- true ) */
 			cpu.d.push(true);
 			return cpu.next;
 		},
 	
-		'f': function(cpu, dict) { /* ( -- false ) */
+		'f': function(cpu) { /* ( -- false ) */
 			cpu.d.push(state.d, false);
 			return cpu.next;
 		},
 		
-		'allot': function(cpu, dict) { /* ( n -- ) reserve n cells in ram */
+		'allot': function(cpu) { /* ( n -- ) reserve n cells in ram */
 			cpu.d.push(dict.allot(cpu.d.pop()));
 			return cpu.next;
 		},
 		
-		'reset': function(cpu, dict) { /* ( x y z -- ) reset the stacks and get ready for input */
+		'reset': function(cpu) { /* ( x y z -- ) reset the stacks and get ready for input */
 			cpu.d = Stack.new();
 			cpu.j = Stack.new();
 			cpu.mode = false; /* execute mode */
@@ -351,176 +362,176 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 		
-		'-': function(cpu, dict) { /* ( b a -- (b - a) ) subtract */
+		'-': function(cpu) { /* ( b a -- (b - a) ) subtract */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b - a);
 			return cpu.next;
 		},
 		
-		'+': function(cpu, dict) { /* ( b a -- (b + a) ) add */
+		'+': function(cpu) { /* ( b a -- (b + a) ) add */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b + a);
 			return cpu.next;
 		},
 	
-		'/': function(cpu, dict) { /* ( b a -- (b / a) ) divide */
+		'/': function(cpu) { /* ( b a -- (b / a) ) divide */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b / a);
 			return cpu.next;
 		},
 	
-		'*': function(cpu, dict) { /* ( b a -- (b * a) ) multiply */
+		'*': function(cpu) { /* ( b a -- (b * a) ) multiply */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b * a);
 			return cpu.next;
 		},
 	
-		'&': function(cpu, dict) { /* ( b a -- (b & a) ) bit wise AND */
+		'&': function(cpu) { /* ( b a -- (b & a) ) bit wise AND */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b & a);
 			return cpu.next;
 		},
 	
-		'|': function(cpu, dict) { /* ( b a -- (b | a) ) bitwise or */
+		'|': function(cpu) { /* ( b a -- (b | a) ) bitwise or */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b | a);
 			return cpu.next;
 		},
 	
-		'^': function(cpu, dict) { /* ( b a -- (b ^ a) ) bitwise xor */
+		'^': function(cpu) { /* ( b a -- (b ^ a) ) bitwise xor */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b ^ a);
 			return cpu.next;
 		},
 	
-		'~': function(cpu, dict) { /* ( a -- ~a ) bitwise not */
+		'~': function(cpu) { /* ( a -- ~a ) bitwise not */
 			var a = cpu.d.pop();
 			cpu.d.push(~a);
 			return cpu.next;
 		},
 	
-		'<<': function(cpu, dict) { /* ( b a -- (b << a) ) bitwise shift */
+		'<<': function(cpu) { /* ( b a -- (b << a) ) bitwise shift */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b << a);
 			return cpu.next;
 		},
 	
-		'>>': function(cpu, dict) { /* ( b a - (b >> a) ) bitwise shift */
+		'>>': function(cpu) { /* ( b a - (b >> a) ) bitwise shift */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b >> a);
 			return cpu.next;
 		},
 	
-		'>>>': function(cpu, dict) { /* ( b a - (b >>> a) ) bitwise shift */
+		'>>>': function(cpu) { /* ( b a - (b >>> a) ) bitwise shift */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b >>> a);
 			return cpu.next;
 		},
 	
-		'=': function(cpu, dict) { /* ( b a - (b == a) ) equality */
+		'=': function(cpu) { /* ( b a - (b == a) ) equality */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b == a);
 			return cpu.next;
 		},
 	
-		'>': function(cpu, dict) { /* ( b a - (b > a) ) gt */
+		'>': function(cpu) { /* ( b a - (b > a) ) gt */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b > a);
 			return cpu.next;
 		},
 		
-		'>=': function(cpu, dict) { /* ( b a - (b >= a) ) gte */
+		'>=': function(cpu) { /* ( b a - (b >= a) ) gte */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b >= a);
 			return cpu.next;
 		},
 	
-		'<': function(cpu, dict) { /* ( b a - (b < a) ) lt */
+		'<': function(cpu) { /* ( b a - (b < a) ) lt */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b < a);
 			return cpu.next;
 		},
 	
-		'<=': function(cpu, dict) { /* ( b a - (b <= a) ) lte */
+		'<=': function(cpu) { /* ( b a - (b <= a) ) lte */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b <= a);
 			return cpu.next;
 		},
 	
-		'**': function(cpu, dict) {  /* ( b a - (b ^ a) ) raise to the power */
+		'**': function(cpu) {  /* ( b a - (b ^ a) ) raise to the power */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(Math.pow(b, a));
 			return cpu.next;
 		},
 	
-		'abs': function(cpu, dict) {  /* ( a - abs(a) )  abs */
+		'abs': function(cpu) {  /* ( a - abs(a) )  abs */
 			var v = cpu.d.pop();
 			v = Math.abs(v);
 			cpu.d.push(v);
 			return cpu.next;
 		},
 	
-		'+1': function(cpu, dict) { /* ( a - (a+1) ) inc */
+		'+1': function(cpu) { /* ( a - (a+1) ) inc */
 			var v = cpu.d.pop();
 			cpu.d.push(v + 1);
 			return cpu.next;
 		},
 	
-		'-1': function(cpu, dict) { /* ( a - (a-1) ) dec */
+		'-1': function(cpu) { /* ( a - (a-1) ) dec */
 			var v = cpu.d.pop();
 			cpu.d.push(v - 1);
 			return cpu.next;
 		},
 	
-		'here': function(cpu, dict) { /* ( - DP )  push dictionary pointer */
+		'here': function(cpu) { /* ( - DP )  push dictionary pointer */
 			cpu.d.push(c.dict.pointer);
 			return cpu.next;
 		},
 	
-		'<R': function(cpu, dict) { /* ( - (top of R) ) // pop from R stack to data stack */
+		'<R': function(cpu) { /* ( - (top of R) ) // pop from R stack to data stack */
 			var a = cpu.r.pop();
 			cpu.d.push(a);
 			return cpu.next;
 		},
 	
-		'>R': function(cpu, dict) { /* ( a - )  push to R stack */
+		'>R': function(cpu) { /* ( a - )  push to R stack */
 			cpu.r.push(cpu.d.pop());
 			return cpu.next;
 		},
 	
-		'<J': function(cpu, dict) { /* ( - (top of J) ) pop from J stack and push to data stack */
+		'<J': function(cpu) { /* ( - (top of J) ) pop from J stack and push to data stack */
 			cpu.d.push(cpu.j.pop());
 			return cpu.next;
 		},
 	
-		'>J': function(cpu, dict) { /* ( a -- ) push top of data stack to J stack */
+		'>J': function(cpu) { /* ( a -- ) push top of data stack to J stack */
 			cpu.j.push(cpu.d.pop());
 			return cpu.next;
 		},
 	
 	
-		'J++': function(cpu, dict) { /* ( -- ) increment J tos */
+		'J++': function(cpu) { /* ( -- ) increment J tos */
 			cpu.j.push(cpu.j.pop() + 1);
 			return cpu.next;
 		},
 		
-		'i': function(cpu, dict) { /* ( -- jtos ) push top of j stack without popping it */
+		'i': function(cpu) { /* ( -- jtos ) push top of j stack without popping it */
 			if(cpu.j.cells.length > 0) {
 				cpu.d.push(cpu.j.top());
 			} else {
@@ -529,7 +540,7 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 	
-		'j': function(cpu, dict) { /* ( -- jtos ) push top of j stack without popping it */
+		'j': function(cpu) { /* ( -- jtos ) push top of j stack without popping it */
 			if(cpu.j.cells.length > 2) {
 				cpu.d.push(cpu.j.cells[cpu.j.cells.length - 3]);
 			} else {
@@ -538,12 +549,12 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 	
-		'!CA': function(cpu, dict) { /* ( a -- ) store tos at the code address cell of the word */
-			dict.cells[dict.entry + Dict.previous_entry_offset + 1] = cpu.d.pop();
+		'!CA': function(cpu) { /* ( a -- ) store tos at the code address cell of the word */
+			cpu.dict.cells[dict.entry + previous_entry_offset + 1] = cpu.d.pop();
 			return cpu.next;
 		},
 	
-		'swap': function(cpu, dict) { /* ( b a -- a b ) swap the two top stack entries  */
+		'swap': function(cpu) { /* ( b a -- a b ) swap the two top stack entries  */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(a);
@@ -551,12 +562,12 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 	
-		'dup': function(cpu, dict) { /* ( a -- a a ) duplicate the tos */
+		'dup': function(cpu) { /* ( a -- a a ) duplicate the tos */
 			cpu.d.push(c.top());
 			return cpu.next;
 		},
 	
-		'tuck': function(cpu, dict) { /* ( b a -- a b a ) copy tos to 3rd place, could just be : tuck swap over ; */
+		'tuck': function(cpu) { /* ( b a -- a b a ) copy tos to 3rd place, could just be : tuck swap over ; */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(a);
@@ -565,7 +576,7 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 		
-		'over': function(cpu, dict) { /* ( b a -- b a b ) copy the second entry to tos */
+		'over': function(cpu) { /* ( b a -- b a b ) copy the second entry to tos */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
 			cpu.d.push(b);
@@ -574,7 +585,7 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 	
-		'rswap': function(cpu, dict) { /* ( -- ) swap the top elements of the R stack */
+		'rswap': function(cpu) { /* ( -- ) swap the top elements of the R stack */
 			var a = cpu.r.pop();
 			var b = cpu.r.pop();
 			cpu.r.push(a);
@@ -582,45 +593,45 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 	
-		'context': function(cpu, dict) { /* ( -- "context" ) push "context" */
+		'context': function(cpu) { /* ( -- "context" ) push "context" */
 			cpu.d.push('context');
 			return cpu.next;
 		},
 	
 	
-		'compile': function(cpu, dict) { /* ( -- "compile" ) push "compile" */
+		'compile': function(cpu) { /* ( -- "compile" ) push "compile" */
 			cpu.d.push('compile');
 			return cpu.next;
 		},
 	
-		'immediate': function(cpu, dict) { /* ( -- ) set the vocabulary of the last defined word to "compile" */
+		'immediate': function(cpu) { /* ( -- ) set the vocabulary of the last defined word to "compile" */
 			dict.cells[dict.entry + 1] = "compile";
 			return cpu.next;
 		},
 	
-		'execute': function(cpu, dict) { /* ( -- wa ) run the word with its address on the tos */
+		'execute': function(cpu) { /* ( -- wa ) run the word with its address on the tos */
 			cpu.cfa = cpu.d.pop(); // cfa 
 			return cpu.run;
 		},
 		
-		'?sp': function(cpu, dict) { /* ( -- addr ) push the address of the data stack  */
+		'?sp': function(cpu) { /* ( -- addr ) push the address of the data stack  */
 			cpu.d.push(c.d.pointer);
 			return cpu.next;
 		},
 	
-		'?rs': function(cpu, dict) { /* ( -- addr ) push the address of the return stack  */
+		'?rs': function(cpu) { /* ( -- addr ) push the address of the return stack  */
 			cpu.d.push(cpu.r.pointer);
 			return cpu.next;
 		},
 	
-		'token': function(cpu, dict) { /* ( token -- ) extract everything in c.pad until the terminator, and put it in the dictionary */
+		'token': function(cpu) { /* ( token -- ) extract everything in c.pad until the terminator, and put it in the dictionary */
 			var tok_text = tokenize(cpu.d.pop(), cpu.pad);
 			cpu.token = tok_text[0];
 			cpu.pad = tok_text[1];
 			return cpu.next;
 		},
 	
-		'token?': function(cpu, dict) { /* ( token -- ( true | false ) ) extract everything in c.pad until the terminator, put it in the dictionary and report if you found anything */
+		'token?': function(cpu) { /* ( token -- ( true | false ) ) extract everything in c.pad until the terminator, put it in the dictionary and report if you found anything */
 			var terminator = cpu.d.pop();
 			if(cpu.pad == "") {
 				cpu.d.push(false);
@@ -633,100 +644,100 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 	
-		'<token': function(cpu, dict) {
+		'<token': function(cpu) {
 			cpu.d.push(cpu.token);
 			return cpu.next;
 		},
 	
-		'(value)': function(cpu, dict) { /* ( -- n ) push the contents of the next cell */
+		'(value)': function(cpu) { /* ( -- n ) push the contents of the next cell */
 			cpu.d.push(dict.cells[cpu.i]);
 			cpu.i++;
 			return cpu.next;
 		},
 	
-		'chr': function(cpu, dict) { /* ( n -- chr(n) ) push the character from the code on the tos */
+		'chr': function(cpu) { /* ( n -- chr(n) ) push the character from the code on the tos */
 			var v = String.fromCharCode(cpu.d.pop());
 			cpu.d.push(v);
 			return cpu.next;
 		},
 	
-		'!': function(cpu, dict) { /* ( adr val -- ) write val to cell at adr */
+		'!': function(cpu) { /* ( adr val -- ) write val to cell at adr */
 			var v = cpu.d.pop();
 			var a = cpu.d.pop();
 			dict.cells[a] = v;
 			return cpu.next;
 		},
 	
-		'@': function(cpu, dict) { /* ( adr -- val ) push the contents of cell at adr */
+		'@': function(cpu) { /* ( adr -- val ) push the contents of cell at adr */
 			cpu.d.push(dict.cells[c.pop()]);
 			return cpu.next;
 		},
 		
-		',': function(cpu, dict) { /* ( val -- ) store tos in the next cell */
+		',': function(cpu) { /* ( val -- ) store tos in the next cell */
 			dict.cells[dict.pointer++] = cpu.d.pop();
 			return cpu.next;
 		},
 	
-		'@dp': function(cpu, dict) { /* ( -- val ) push the contents of the current dictionary cell */
+		'@dp': function(cpu) { /* ( -- val ) push the contents of the current dictionary cell */
 			cpu.d.push(dict.cells[dict.pointer]);
 			return cpu.next;
 		},
 	
-		'dp+=': function(cpu, dict) { /* ( val -- ) add val to the dictionary pointer */
+		'dp+=': function(cpu) { /* ( val -- ) add val to the dictionary pointer */
 			dict.pointer += cpu.d.pop();
 			return cpu.next;
 		},
 	
-		'dp++': function(cpu, dict) { /* ( -- ) increment the dictionary pointer */
+		'dp++': function(cpu) { /* ( -- ) increment the dictionary pointer */
 			dict.pointer++;
 			return cpu.next;
 		},
 	
-		'drop': function(cpu, dict) { /* ( a -- ) drop the tos */
+		'drop': function(cpu) { /* ( a -- ) drop the tos */
 			cpu.d.pop();
 			return cpu.next;
 		},
 	
-		'undefined': function(cpu, dict) {  /* ( -- undefined ) push undefined */
+		'undefined': function(cpu) {  /* ( -- undefined ) push undefined */
 			cpu.d.push(undefined);
 			return cpu.next;
 		},
 	
-		'wa': function(cpu, dict) { /* ( "word" -- wa|undefined ) push word address or undefined on tos */
+		'wa': function(cpu) { /* ( "word" -- wa|undefined ) push word address or undefined on tos */
 			cpu.d.push(dict.wa(cpu.vocabulary, cpu.d.pop()));
 			return cpu.next;
 		 },
 	
-		'ca': function(cpu, dict) {/* ( "word" -- ca|undefined ) push code address or undefined on tos */
+		'ca': function(cpu) {/* ( "word" -- ca|undefined ) push code address or undefined on tos */
 			cpu.d.push(dict.ca(cpu.vocabulary, cpu.d.pop()));
 			return cpu.next;
 		},
 	
 	
-		'pfa': function(cpu, dict) { /* ( NFA -- PFA) push Parameter Field Address for the given Name Field Address , just arithmetic */
+		'pfa': function(cpu) { /* ( NFA -- PFA) push Parameter Field Address for the given Name Field Address , just arithmetic */
 			var nfa = cpu.d.pop();
 			if(isAddress(nfa)){
-				cpu.d.push(Dict.nfa_to_pfa(nfa));
+				cpu.d.push(exports.nfa_to_pfa(nfa));
 			} else {
 				cpu.d.push(undefined);
 			}
 			return cpu.next;
 		},
 	
-		'cfa': function(cpu, dict) { /* ( PFA -- CFA) push Code Field Address for the given parameter Field Address , just arithmetic */
+		'cfa': function(cpu) { /* ( PFA -- CFA) push Code Field Address for the given parameter Field Address , just arithmetic */
 			var pfa = cpu.d.pop();
 			if(isAddress(pfa)){
-				cpu.d.push(dict.pfa_to_cfa(pfa));
+				cpu.d.push(exports.pfa_to_cfa(pfa));
 			} else {
 				cpu.d.push(undefined);
 			}
 			return cpu.next;
 		},
 	
-		'lfa': function(cpu, dict) { /* ( PFA -- LFA) push Link Field Address for the given parameter Field Address , just arithmetic */
+		'lfa': function(cpu) { /* ( PFA -- LFA) push Link Field Address for the given parameter Field Address , just arithmetic */
 			var pfa = cpu.d.pop();
 			if(isAddress(pfa)){
-				cpu.d.push(dict.pfa_to_cfa(pfa));
+				cpu.d.push(exports.pfa_to_cfa(pfa));
 			} else {
 				cpu.d.push(undefined);
 			}
@@ -734,18 +745,18 @@ initFcpu = function(n) {
 		},
 	
 	
-		'nfa': function(cpu, dict) { /* ( PFA -- NFA) push Name Field Address for the given PFA, just arithmetic */
+		'nfa': function(cpu) { /* ( PFA -- NFA) push Name Field Address for the given PFA, just arithmetic */
 			var pfa = cpu.d.pop();
 			if(isAddress(pfa)){
-				cpu.d.push(dict.pfa_to_nfa(pfa));
+				cpu.d.push(exports.pfa_to_nfa(pfa));
 			} else {
 				cpu.d.push(undefined);
 			}
 			return cpu.next;
 		}, 
 		  
-		'search': function(cpu, dict) { /* ( -- (false wa) | true ) search the dictionary for "word" push the wa and a flag for (not found) */
-			var word_addr = dict.wa(cpu.token);
+		'search': function(cpu) { /* ( -- (false wa) | true ) search the dictionary for "word" push the wa and a flag for (not found) */
+			var word_addr = cpu.dict.wa(cpu.token);
 	
 			if(word_addr) {
 				cpu.d.push(word_addr);
@@ -756,38 +767,38 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 	
-		'<mode': function(cpu, dict) { /* ( -- mode ) push the current mode */
+		'<mode': function(cpu) { /* ( -- mode ) push the current mode */
 			cpu.d.push(cpu.mode);
 			return cpu.next;
 		},
 		
-		'>mode': function(cpu, dict) {  /* ( mode -- ) set the current mode */
+		'>mode': function(cpu) {  /* ( mode -- ) set the current mode */
 			cpu.mode = (cpu.d.pop() == true);
 			return cpu.next;
 		},
 	
-		'<state': function(cpu, dict) { /* ( -- state ) push the current state */
+		'<state': function(cpu) { /* ( -- state ) push the current state */
 			cpu.d.push(c.state);
 			return cpu.next;
 		},
 		
-		'>state': function(cpu, dict) { /* ( state -- ) set the current state */
+		'>state': function(cpu) { /* ( state -- ) set the current state */
 			var v = cpu.d.pop();
 			cpu.state = (v == true);
 			return cpu.next;
 		},
 	
-		'<vocabulary': function(cpu, dict) { /* ( -- vocabulary ) push the current vocabulary */
+		'<vocabulary': function(cpu) { /* ( -- vocabulary ) push the current vocabulary */
 			cpu.d.push(cpu.vocabulary);
 			return cpu.next;
 		},
 		
-		'>vocabulary': function(cpu, dict) { /* ( vocabulary -- ) set the current vocabulary */
+		'>vocabulary': function(cpu) { /* ( vocabulary -- ) set the current vocabulary */
 			cpu.vocabulary = cpu.d.pop();
 			return cpu.next;
 		},
 	
-		'not': function(cpu, dict) { /* ( v -- !v ) boolean not */
+		'not': function(cpu) { /* ( v -- !v ) boolean not */
 			var v = cpu.d.pop();
 			if(v == true) { /* might be excessive */
 				cpu.d.push(false);
@@ -797,28 +808,28 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 		
-		'*ca': function(cpu, dict) { /* ( -- ca ) push the code address address of the current entry */
+		'*ca': function(cpu) { /* ( -- ca ) push the code address address of the current entry */
 			cpu.d.push(dict.entry + Dict.header_size);
 			return cpu.next;
 		},
 		
-		'>entry': function(cpu, dict) { /* ( -- ) set the last entry to the current dictionary pointer */
+		'>entry': function(cpu) { /* ( -- ) set the last entry to the current dictionary pointer */
 			dict.entry = dict.pointer;
 			return cpu.next;
 		},
 		
-		'<entry': function(cpu, dict) { /* ( -- daddr ) push entry address */
+		'<entry': function(cpu) { /* ( -- daddr ) push entry address */
 			cpu.d.push(c.dict.entry);
 			return cpu.next;
 		},
 		
-		'<>entry': function(cpu, dict) { /* ( -- linkaddr ) push the current link-address and then set it to the current dictionary pointer */
+		'<>entry': function(cpu) { /* ( -- linkaddr ) push the current link-address and then set it to the current dictionary pointer */
 			cpu.d.push(dict.entry);
 			dict.entry = dict.pointer;
 			return cpu.next;
 		},
 		
-		'?number': function(cpu, dict) { /* ( -- flag (maybe value) ) depending on the mode, push a flag and the value or store it in the dictionary */
+		'?number': function(cpu) { /* ( -- flag (maybe value) ) depending on the mode, push a flag and the value or store it in the dictionary */
 	
 			if(!isNumber(cpu.token)) {
 				cpu.d.push(true);
@@ -838,38 +849,38 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 	
-		'tokenerror': function(cpu, dict) { /* ( -- ) report an unrecohnised word error to the console */
+		'tokenerror': function(cpu) { /* ( -- ) report an unrecohnised word error to the console */
 			console.log(">>" + cpu.token + "<< error unrecognised word");
 			return cpu.next;
 		},
 		
-		'log': function(cpu, dict) { /* ( v -- ) concat the tos to the console */
+		'log': function(cpu) { /* ( v -- ) concat the tos to the console */
 			var v = cpu.d.pop();
 			if(v != undefined)
 				console.log(v);
 			return cpu.next;
 		},
 		
-		'cr': function(cpu, dict) { /* ( -- ) print t"\r" to the console */
+		'cr': function(cpu) { /* ( -- ) print t"\r" to the console */
 			console.log("\n")
 			return cpu.next;
 		},
 		
-		'spc': function(cpu, dict) { /* ( -- " " ) push a space character */
+		'spc': function(cpu) { /* ( -- " " ) push a space character */
 			cpu.d.push(' ');
 			return cpu.next;
 		},
 		
-		'current!': function(cpu, dict) { /* ( -- ) store the current vocabulary in the dictionary */
+		'current!': function(cpu) { /* ( -- ) store the current vocabulary in the dictionary */
 			dict.cells[dict.pointer++] = cpu.vocabulary;
 			return cpu.next;
 		},
 		
-		'(semi)': function(cpu, dict) { /* ( -- ) execute semi */
+		'(semi)': function(cpu) { /* ( -- ) execute semi */
 			return cpu.semi;
 		},
 		
-		'(if!jmp)': function(cpu, dict) { /* ( flag -- ) if flag is false, jump to address in next cell, or just skip over */
+		'(if!jmp)': function(cpu) { /* ( flag -- ) if flag is false, jump to address in next cell, or just skip over */
 			var flag = cpu.d.pop();
 			if(flag == true) {
 				cpu.i++;
@@ -879,12 +890,12 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 		
-		'(jmp)': function(cpu, dict) { /* ( -- ) unconditional jump to the address in the next cell */
+		'(jmp)': function(cpu) { /* ( -- ) unconditional jump to the address in the next cell */
 			cpu.i = dict.cells[cpu.i];
 			return cpu.next;
 		},
 		
-		'(if!rjmp)': function(cpu, dict) { /* ( flag -- ) if flag is false, jump by the delta in next cell, or just skip over */
+		'(if!rjmp)': function(cpu) { /* ( flag -- ) if flag is false, jump by the delta in next cell, or just skip over */
 			var flag = cpu.d.pop();
 			if(flag == true) {
 				cpu.i++;
@@ -894,22 +905,22 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 		
-		'(rjmp)': function(cpu, dict) { /* ( -- ) unconditional jump by the delta in the next cell */
+		'(rjmp)': function(cpu) { /* ( -- ) unconditional jump by the delta in the next cell */
 			cpu.i += dict.cells[cpu.i];
 			return cpu.next;
 		},
 		
-		'(colon)': function(cpu, dict) { /* ( -- caColon ) push code address of colon for use in : */
+		'(colon)': function(cpu) { /* ( -- caColon ) push code address of colon for use in : */
 			cpu.d.push(dict.ca(cpu.vocabulary, 'colon'));
 			return cpu.next;
 		},
 		
-		'(next_cell)': function(cpu, dict) { /* ( t i -- ) setup do .. loop */
+		'(next_cell)': function(cpu) { /* ( t i -- ) setup do .. loop */
 			cpu.d.push.push(cpu.cfa + 1)
 			return cpu.next;
 		},
 	
-		'(do)': function(cpu, dict) { /* ( t i -- ) setup do .. loop */
+		'(do)': function(cpu) { /* ( t i -- ) setup do .. loop */
 			var index = cpu.d.pop();
 			var terminator = cpu.d.pop();
 			cpu.j.push(terminator);
@@ -917,7 +928,7 @@ initFcpu = function(n) {
 			return cpu.next;cpu.next;
 		},
 	
-		'(loop)': function(cpu, dict) { /* ( -- ) increment the loop counter until counter is gt terminator*/
+		'(loop)': function(cpu) { /* ( -- ) increment the loop counter until counter is gt terminator*/
 			var tos = cpu.j.cells.length - 1;
 			var terminator = cpu.j.cells[tos-1];
 			var counter = cpu.j.cells[tos];
@@ -933,7 +944,7 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 
-		'(+loop)': function(cpu, dict) { /* ( -- ) increment the loop counter by tos until counter is gt terminator*/
+		'(+loop)': function(cpu) { /* ( -- ) increment the loop counter by tos until counter is gt terminator*/
 			var tos = cpu.j.cells.length - 1;
 			var terminator = cpu.j.cells[tos-1];
 			var counter = cpu.j.cells[tos];
@@ -949,7 +960,7 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 		
-		'lambda': function(cpu, dict) {
+		'lambda': function(cpu) {
 			var body = cpu.d.pop();
 			if(isString(body)) {
 				try {
@@ -968,12 +979,12 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 	
-		'(js)': function(cpu, dict) {
+		'(js)': function(cpu) {
 			var body = cpu.d.pop();
 			if(isString(body)) {
 				try {
 					var f;
-					eval('f = function(cpu, dict) { ' + body + ' ; } ;');
+					eval('f = function(cpu) { ' + body + ' ; } ;');
 					cpu.d.push(f);
 					cpu.d.push(true);
 				} catch(e) {
@@ -987,14 +998,248 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 		
-		'(;code)': function(cpu, dict) {
-			cpu.d.cells[cpu.i](cpu, dict);
+		'(;code)': function(cpu) {
+			cpu.d.cells[cpu.i](cpu);
 			cpu.i++; 
 			return cpu.next;
-		},
+		}
 	});
+		
+		
+		
+		/* secondaries */
+	add_to_dict('context', {
+		'?search' : [ /*  ( -- flag ) search the dictionaries for the word in the pad flag is not found */
+		  	  _wa('search')
+			, _wa('dup')
+			, _wa('(if!rjmp)')
+			, 17
+				, _wa('<mode')
+				, _wa('(if!rjmp)')
+				, 14
+					, _wa('drop')
+					, _wa('compile')
+					, _wa('>vocabulary')
+					, _wa('search')
+					, _wa('context')
+					, _wa('>vocabulary')
+					, _wa('dup')
+					, _wa('not')
+					, _wa('(if!rjmp)')
+					, 4
+						, _wa('(value)')
+						, true
+						, _wa('>state')
+			]
+		});
+		
+	add_to_dict('context', {
+		'?execute' : [ /* ( -- ) execute the word if it's immediate (i think)  */
+			  _wa('<state')
+			, _wa('<mode')
+			, _wa('(value)')
+			, false
+			, _wa('>state')
+			, _wa('=')
+			, _wa('(if!rjmp)')
+			, 4
+				, _wa('execute')
+				, _wa('(rjmp)')
+				, 2
+			, _wa(',')
+		],
+		
+		'<word' : [ /* read space delimeted word from the pad */
+			_wa('spc')
+			, _wa('token')
+			, _wa('<token')
+		]
+		});
+		
+	add_to_dict('context', {
+		'create' : [ /* ( -- ) create a dictionary entry for the next word in the pad */
+	 	 	  _wa('>entry')
+			, _wa('here')
+			, _wa('<word')
+			, _wa(',')
+			, _wa('current!')
+			, _wa('dp++') // jump last previous_entry_offset
+			, _wa('here')
+			, _wa('dup')
+			, _wa('+1')
+			, _wa(',') // store the ca in the wa
+			, _wa('(value)')
+			, previous_entry_offset
+			, _wa('+')
+			, _wa('+1') // wrong I think
+			, _wa('swap')
+			, _wa('!') // store our dp in the previous_entry_offset of the next word
+		]
+		});
+		
+	add_to_dict('context', {
+		'createA' : [ /* ( -- ) create a dictionary entry for the next word in the pad */
+			  _wa('spc')
+			, _wa('token')
+			, _wa('<token')
+			, _wa(',')
+			, _wa('current!')
+	 	 	, _wa('<entry')
+			, _wa(',')
+			, _wa('(value)')
+			, _wa('(next_cell)')
+			, _wa('+1')
+			, _wa(',')
+		]
+		});
+		
+	add_to_dict('context', {
+		'outer' : [  /* ( -- ) tokenize the pad and do whatever it says */
+			  _wa('spc')
+			, _wa('token?')
+			, _wa('(if!rjmp)')
+			, 13
+				, _wa('?search')
+				, _wa('(if!rjmp)')
+				, 7
+					, _wa('?number')
+					, _wa('(if!rjmp)')
+					, 5
+						, _wa('tokenerror')
+						, _wa('(rjmp)')
+						, 4
+				, _wa('?execute')
+				, _wa('(rjmp)')
+				, -15
+		]
+		});
+		
+	add_to_dict('context', {
+		':' : [ /* ( -- ) create a word entry */
+		  	  _wa('context')
+			, _wa('>vocabulary')
+			, _wa('create')
+			, _wa('(colon)')
+			, _wa('!CA')
+			, _wa('t')
+			, _wa('>mode')
+		]
+		});
 }
 
 exports.initFcpu = initFcpu;
 exports.States = States;
 exports.spawn = spawn;
+exports.parse = parse;
+
+
+
+/* stdlib */
+
+function ltrim(str) { 
+	for(var k = 0; k < str.length && isWhitespace(str.charAt(k)); k++);
+	return str.substring(k, str.length);
+}
+
+function rtrim(str) {
+	for(var j=str.length-1; j>=0 && isWhitespace(str.charAt(j)) ; j--) ;
+	return str.substring(0,j+1);
+}
+
+function trim(str) {
+	return ltrim(rtrim(str));
+}
+
+function isDefined(x) {
+	return typeof x != 'undefined';
+}
+
+function isWhitespace(charToCheck) {
+	var whitespaceChars = " \t\n\r\f";
+	return (whitespaceChars.indexOf(charToCheck) != -1);
+}
+
+function isNumber(n) {
+	return !isNaN(parseFloat(n)) && isFinite(n);
+}
+
+function isInt(n) {
+	return isNumber(n) && n == (n|0);
+}
+
+function isAddress(n) {
+	return isInt(n) && n >= 0;
+}
+
+function isFunction(o) {
+	return typeof(o) == 'function' && (!Function.prototype.call || typeof(o.call) == 'function')
+}
+
+function isString(s) {
+	return Object.prototype.toString.call(s) == '[object String]'
+}
+
+function tokenize(terminator, untokenised_text) {
+// replaces newlines with the terminator, so watch it
+
+	if(untokenised_text == "" || terminator == "") return "";
+
+	var token = ""; 
+
+	var token_fragment; 
+	var bits;
+	var trim_length;
+	
+	// can't tokenise non existent text
+	while(untokenised_text != undefined) {
+	
+		// split at the terminator
+		bits = untokenised_text.replace("\n", terminator).split(terminator, 2);
+		
+		// contains the token we want
+		token_fragment = bits[0];
+		
+		// amount of text we will trim from the front of the untokenized_text
+		trim_length = token_fragment.length + terminator.length;
+
+		// trim multiple terminators (e.g. lots of spaces) by extending the trim length
+		while(untokenised_text.substr(trim_length, terminator.length) == terminator)
+			trim_length += terminator.length;
+		
+		if(terminator == '"') { // double quote special case looking for escaped \" and \\
+			if(token_fragment.substr(-1) == "\\") {
+				token = token.concat(token_fragment.substr(0, token_fragment.length-1))
+				token = token.concat("\"");
+				untokenised_text = untokenised_text.substr(trim_length - 1);
+			} else {	
+				token = token.concat(token_fragment);
+				untokenised_text = untokenised_text.substr(trim_length);
+				break;
+			}
+		} else {
+			token = token_fragment;
+			untokenised_text = untokenised_text.substr(trim_length);
+			break;
+		}
+	}
+	
+	// tidy up untokenised text
+	if(untokenised_text == undefined) 
+		untokenised_text = "";
+	else {
+		// not sure if this is too specific, maybe we want to preserve spaces in some cases ?
+		untokenised_text = ltrim(untokenised_text);
+	}
+	return Array(token, untokenised_text);
+}
+
+
+function strstr(t, n) {
+	var s = ""
+	for(var i = 0; i < n; i++)
+		s = s.concat(t)
+	return s	
+}
+
+
+
