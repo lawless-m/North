@@ -72,21 +72,21 @@ var header_size = 3 /* offset to the first cell after the header */
 exports.previous_entry_offset = previous_entry_offset;
 exports.header_size = header_size;
 
-exports.nfa_to_lfa = function(n) { return n + 2; };
-exports.nfa_to_cfa = function(n) { return n + 3; };
-exports.nfa_to_pfa = function(n) { return n + 4; };
+nfa_to_lfa = function(n) { return n + 2; };
+nfa_to_cfa = function(n) { return n + 3; };
+nfa_to_pfa = function(n) { return n + 4; };
 
-exports.lfa_to_nfa = function(n) { return n - 2; };
-exports.lfa_to_cfa = function(n) { return n + 1; };
-exports.lfa_to_pfa = function(n) { return n + 2; };
+lfa_to_nfa = function(n) { return n - 2; };
+lfa_to_cfa = function(n) { return n + 1; };
+lfa_to_pfa = function(n) { return n + 2; };
 
-exports.cfa_to_nfa = function(n) { return n - 3; };
-exports.cfa_to_lfa = function(n) { return n - 1; };
-exports.cfa_to_pfa = function(n) { return n + 1; };
+cfa_to_nfa = function(n) { return n - 3; };
+cfa_to_lfa = function(n) { return n - 1; };
+cfa_to_pfa = function(n) { return n + 1; };
 
-exports.pfa_to_cfa = function(n) { return n - 1; };
-exports.pfa_to_lfa = function(n) { return n - 2; };
-exports.pfa_to_nfa = function(n) { return n - 4; };
+pfa_to_cfa = function(n) { return n - 1; };
+pfa_to_lfa = function(n) { return n - 2; };
+pfa_to_nfa = function(n) { return n - 4; };
 
 newDict = function() {
 	var d = {
@@ -203,9 +203,9 @@ newDict = function() {
 			stream.write("Pointer: " + this.pointer + "\n")
 			for(var i = 0; i < (entries.length-1); i++) {
 				var nfa = entries[i];
-				var lfa = exports.nfa_to_lfa(nfa);
-				var cfa = exports.nfa_to_cfa(nfa);
-				var pfa = exports.nfa_to_pfa(nfa);
+				var lfa = nfa_to_lfa(nfa);
+				var cfa = nfa_to_cfa(nfa);
+				var pfa = nfa_to_pfa(nfa);
 				
 				stream.write(fmt(pfx, nfa) + " NFA  " + this.cells[nfa] + "\n");
 				stream.write(fmt(pfx, nfa + 1) + " VOCB " + this.cells[nfa + 1] + "\n");
@@ -218,11 +218,11 @@ newDict = function() {
 					/* secondary */
 					stream.write(fmt(pfx, cfa) + " CFA  " + fmt(pfx, this.cells[cfa]) + "\n");
 					stream.write(fmt(pfx, pfa) + " PFA  ");
-					stream.write(fmt(pfx, this.cells[pfa]) + " - " + this.cells[exports.cfa_to_nfa(this.cells[pfa])] + "\n");
+					stream.write(fmt(pfx, this.cells[pfa]) + " - " + this.cells[cfa_to_nfa(this.cells[pfa])] + "\n");
 					for(var a = pfa + 1; a < entries[i+1]; a++) {
 						stream.write(fmt(pfx, a) + "      " + fmt(pfx, this.cells[a]));
 						if(values.indexOf(this.cells[a-1]) < 0) {
-							nfa = exports.cfa_to_nfa(this.cells[a]);
+							nfa = cfa_to_nfa(this.cells[a]);
 							if(entries.indexOf(nfa) > 0) {
 								stream.write(" - " + this.cells[nfa]);
 							}
@@ -288,7 +288,7 @@ run = function(cpu) {
 	var code_pointer = cpu.dict.cells[cpu.cfa]; /* this should be the index into the cells of the javascript of that function */
 	cpu.cfa += 1;
 	if(trace) {
-		var nfa = exports.pfa_to_nfa(code_pointer);
+		var nfa = pfa_to_nfa(code_pointer);
 		if(nfa) {
 			console.log(cpu.dict.cells[nfa] + " - ( " + cpu.d.cells + " )");
 		}
@@ -363,7 +363,7 @@ allot = function(cpu, n) {
 }
 
 initFcpu = function(n) {
-	var colon_ca = exports.nfa_to_pfa(States[n].dict.define(States[n].vocabulary, 'colon', 0, colon));
+	var colon_ca = nfa_to_pfa(States[n].dict.define(States[n].vocabulary, 'colon', 0, colon));
 	var add_to_dict = function(vocab, word_list) {
 		for(var word in word_list) {
 			if(word_list.hasOwnProperty(word)) {
@@ -781,7 +781,7 @@ initFcpu = function(n) {
 		'pfa': function(cpu) { /* ( NFA -- PFA) push Parameter Field Address for the given Name Field Address , just arithmetic */
 			var nfa = cpu.d.pop();
 			if(isAddress(nfa)){
-				cpu.d.push(exports.nfa_to_pfa(nfa));
+				cpu.d.push(nfa_to_pfa(nfa));
 			} else {
 				cpu.d.push(undefined);
 			}
@@ -791,7 +791,7 @@ initFcpu = function(n) {
 		'cfa': function(cpu) { /* ( PFA -- CFA) push Code Field Address for the given parameter Field Address , just arithmetic */
 			var pfa = cpu.d.pop();
 			if(isAddress(pfa)){
-				cpu.d.push(exports.pfa_to_cfa(pfa));
+				cpu.d.push(pfa_to_cfa(pfa));
 			} else {
 				cpu.d.push(undefined);
 			}
@@ -801,7 +801,7 @@ initFcpu = function(n) {
 		'lfa': function(cpu) { /* ( PFA -- LFA) push Link Field Address for the given parameter Field Address , just arithmetic */
 			var pfa = cpu.d.pop();
 			if(isAddress(pfa)){
-				cpu.d.push(exports.pfa_to_cfa(pfa));
+				cpu.d.push(pfa_to_cfa(pfa));
 			} else {
 				cpu.d.push(undefined);
 			}
@@ -812,7 +812,7 @@ initFcpu = function(n) {
 		'nfa': function(cpu) { /* ( PFA -- NFA) push Name Field Address for the given PFA, just arithmetic */
 			var pfa = cpu.d.pop();
 			if(isAddress(pfa)){
-				cpu.d.push(exports.pfa_to_nfa(pfa));
+				cpu.d.push(pfa_to_nfa(pfa));
 			} else {
 				cpu.d.push(undefined);
 			}
