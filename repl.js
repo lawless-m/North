@@ -10,6 +10,7 @@ var repl = net.createServer();
 
 var vtable = { 
 	  'dump_dict' : Cpu.dump_dict
+	, 'dump_state' : Cpu.dump_state
 	, 'traceON' : function() { Cpu.trace(true); }
 	, 'traceOFF' : function() { Cpu.trace(false); } 
 };
