@@ -127,7 +127,7 @@ newDict = function() {
 			this.pointer = p;
 			return this.entry;
 		}
-		, wa: function(vocab, k) { /* the first address of the word *after* the header */
+		, wa: function(vocab, k) { /* return the first address of the word *after* the header, if found in the vocabulary */
 			var p = this.entry;
 			var n;
 			do { 
@@ -290,7 +290,13 @@ run = function(cpu) {
 	if(trace) {
 		var nfa = pfa_to_nfa(code_pointer);
 		if(nfa) {
-			console.log(cpu.dict.cells[nfa] + " - ( " + cpu.d.cells + " )");
+			var wrd;
+			if(nfa == 1) {
+				wrd = cpu.dict.cells[cpu.cfa-4];
+			} else {
+				wrd = cpu.dict.cells[nfa];
+			}
+			console.log(strstr("  ", cpu.r.cells.length) + wrd + " - ( " + cpu.d.cells + " ) [\"" + cpu.pad + "\"]");
 		}
 	}
 	return cpu.dict.cells[code_pointer]; /* return the javascript function */
@@ -368,10 +374,10 @@ initFcpu = function(n) {
 		for(var word in word_list) {
 			if(word_list.hasOwnProperty(word)) {
 				if(isFunction(word_list[word])) {
-					States[n].dict.define(States[n].vocabulary, word, 0, word_list[word]);
+					States[n].dict.define(vocab, word, 0, word_list[word]);
 				} else {
 					word_list[word].push(_wa('(semi)'));
-					States[n].dict.define(States[n].vocabulary, word, colon_ca, word_list[word]);
+					States[n].dict.define(vocab, word, colon_ca, word_list[word]);
 				}
 				
 			}
@@ -408,7 +414,7 @@ initFcpu = function(n) {
 		},
 	
 		'f': function(cpu) { /* ( -- false ) */
-			cpu.d.push(state.d, false);
+			cpu.d.push(false);
 			return cpu.next;
 		},
 		
@@ -903,7 +909,7 @@ initFcpu = function(n) {
 			v = eval(cpu.token);
 	
 			if(cpu.mode == true) {
-				cpu.dict.cells[cpu.dict.dict.pointer++] = cpu.dict.wa(cpu.vocabulary, '(value)');
+				cpu.dict.cells[cpu.dict.pointer++] = cpu.dict.wa(cpu.vocabulary, '(value)');
 				cpu.dict.cells[cpu.dict.pointer++] = v;
 			} else {
 				cpu.d.push(v);
@@ -921,9 +927,16 @@ initFcpu = function(n) {
 		},
 		
 		'log': function(cpu) { /* ( v -- ) concat the tos to the console */
-			var v = cpu.d.pop();
-			if(v != undefined)
+			try {
+				var v = cpu.d.pop();
 				console.log(v);
+			} catch(e) {
+				if(e == "Underflow") {
+					console.log("Stack was empty");
+				} else {
+					throw e
+				}
+			}
 			return cpu.next;
 		},
 		
@@ -1203,6 +1216,14 @@ dump_dict = function(cpu, fname) {
 	console.log('dumped to /tmp/dict')
 }
 
+dump_state = function(cpu, fname) {
+	console.log("CFA: " + cpu.cfa);
+	console.log("I: " + cpu.i);
+	console.log("MODE: " + cpu.mode);
+	console.log("STATE: " + cpu.state);
+	cpu.mode = false;
+}
+
 tracer = function(ONOFF) {
 	trace = ONOFF;
 }
@@ -1212,6 +1233,7 @@ exports.States = States;
 exports.spawn = spawn;
 exports.parse = parse;
 exports.dump_dict = dump_dict;
+exports.dump_state = dump_state;
 exports.trace = tracer;
 
 
