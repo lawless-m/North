@@ -1,5 +1,4 @@
-// var util = require('util'), EventEmitter = require('events').EventEmitter;
-
+// node repl.js
 
 
 var net = require('net');
@@ -18,7 +17,7 @@ var vtable = {
 
 repl.on('connection', function(client) {
 		client.write('OK >');
-		var n = Cpu.spawn();
+		var n = Cpu.spawn(client.write);
 		var input = "";
 		client.on('data', function(data) {
 			var txt = "" + data + "";
@@ -30,6 +29,8 @@ repl.on('connection', function(client) {
 					vtable[input](Cpu.States[n]);
 				} else {
 					Cpu.parse(Cpu.States[n], input);
+					client.write(Cpu.States[n].output);
+					Cpu.States[n].output = "";
 				}
 				
 				input = "";

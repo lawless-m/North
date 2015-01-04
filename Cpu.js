@@ -1,7 +1,8 @@
-
 var trace = false;
 
 var States = [];
+
+var tick = 0;
 
 newStack = function() { 
 	return {
@@ -130,6 +131,7 @@ newDict = function() {
 		, wa: function(vocab, k) { /* return the first address of the word *after* the header, if found in the vocabulary */
 			var p = this.entry;
 			var n;
+			console.log("Searching [" + vocab + "] for [" + k + "] starting at " + p)
 			do { 
 				if(this.cells[p] == k) {
 					if(this.cells[p + 1] == vocab) {
@@ -243,21 +245,22 @@ newDict = function() {
 
 spawn = function() {
 	States.push({
-		run: run,
-		next: next,
-		semi: semi,
-		cfa: 0,
-		i: 0,
-		mode: false,
-		state: false,
-		vocabulary: 'context',
-		pad: '',
-		token: '',
-		d : newStack(),
-		r : newStack(),
-		j : newStack(),
-		dict: newDict(),
-		ram: []
+		  output : ""
+		, run: run
+		, next: next
+		, semi: semi
+		, cfa: 0
+		, i: 0
+		, mode: false
+		, state: false
+		, vocabulary: 'context'
+		, pad: ''
+		, token: ''
+		, d : newStack()
+		, r : newStack()
+		, j : newStack()
+		, dict: newDict()
+		, ram: []
 	});
 	var n = States.length - 1
 	initFcpu(n)
@@ -323,6 +326,8 @@ parse = function(cpu, input) {
 	a = i;
 	delete cpu.dict.cells[a++];
 	delete cpu.dict.cells[a++];
+	dump_state(cpu);
+	dump_dict(cpu);
 }
 
 code_address = function(cpu, vocabulary, k) { 
@@ -384,15 +389,23 @@ initFcpu = function(n) {
 		}
 	}
 	
-	var _wa = function(_word) { return States[n].dict.wa(States[n].vocabulary, _word); };
+	var _wa = function(_word) { 
+		return States[n].dict.wa(States[n].vocabulary, _word); 
+	};
 	
 	add_to_dict('compile',
 	{
-		';': function(cpu) {  /* ( -- ) finish the definition of a word */
+		';' : function(cpu) {  /* ( -- ) finish the definition of a word */
+	
 			cpu.dict.cells[cpu.dict.pointer++] = cpu.dict.wa(cpu.vocabulary, '(semi)');
 			cpu.mode = false; // execute;
 			cpu.dict.cells[cpu.dict.pointer] = ";undefined";
-			cpu.dict.cells[cpu.dict.pointer + previous_entry_offset] = cpu.entry;
+			cpu.dict.cells[cpu.dict.pointer + previous_entry_offset] = cpu.dict.entry;
+			return cpu.next;
+		},
+		
+		'`value' : function(cpu) { /* ( -- wa("(value)") )  lookup the word address of (value) for postpone */
+			cpu.d.push(cpu.dict.wa("context", '(value)'));
 			return cpu.next;
 		}
 	});
@@ -402,6 +415,12 @@ initFcpu = function(n) {
 		'forget': function(cpu) { /* ( -- ) forget the last defined word */
 				cpu.dict.forget();
 				return cpu.next;
+		},
+		
+		'//' : function(cpu) { /* ( -- ) store the pad in the dictionary */
+			cpu.dict.cells[cpu.dict.pointer++] = "// " + cpu.pad;
+			cpu.pad = ""
+			return cpu.next;
 		},
 			
 		'bp' : function(cpu) { /* breakpoint */
@@ -928,8 +947,7 @@ initFcpu = function(n) {
 		
 		'log': function(cpu) { /* ( v -- ) concat the tos to the console */
 			try {
-				var v = cpu.d.pop();
-				console.log(v);
+				console.log(cpu.d.pop());
 			} catch(e) {
 				if(e == "Underflow") {
 					console.log("Stack was empty");
@@ -940,8 +958,34 @@ initFcpu = function(n) {
 			return cpu.next;
 		},
 		
-		'cr': function(cpu) { /* ( -- ) print t"\r" to the console */
-			console.log("\n")
+		'emit': function(cpu) { /* ( -- ) pop to output */
+			try {
+				cpu.output += cpu.d.pop();
+			} catch(e) {
+				if(e == "Underflow") {
+					console.log("Stack was empty");
+				} else {
+					throw e
+				}
+			}
+			return cpu.next;
+		},
+		
+		'cr': function(cpu) { /* ( -- ) output "\n"  */
+			cpu.output("\n")
+			return cpu.next;
+		},
+		
+		'emitcr': function(cpu) { /* ( -- ) pop to output */
+			try {
+				cpu.output += cpu.d.pop() + "\n";
+			} catch(e) {
+				if(e == "Underflow") {
+					console.log("Stack was empty");
+				} else {
+					throw e
+				}
+			}
 			return cpu.next;
 		},
 		
@@ -1204,11 +1248,22 @@ initFcpu = function(n) {
 			, _wa('>mode')
 		]
 		});
+		
+//	read_dict(States[n], 'base.nr');
+}
+
+read_dict = function(cpu, fname) {
+	var fs = require('fs');
+	fs.readFile("/home/matt/North/" + fname, "utf8", function(err, data) {
+		if(err) throw err;
+		console.log(data);
+		parse(cpu, data);
+	});
 }
 
 dump_dict = function(cpu, fname) {
 	var fs = require('fs');
-	var stream = fs.createWriteStream("/tmp/dict");
+	var stream = fs.createWriteStream("/tmp/dict/" + (tick++));
 	stream.once('open', function(fd) {
 		cpu.dict.dump(stream);
   		stream.end();
@@ -1216,12 +1271,17 @@ dump_dict = function(cpu, fname) {
 	console.log('dumped to /tmp/dict')
 }
 
-dump_state = function(cpu, fname) {
+dump_state = function(cpu) {
 	console.log("CFA: " + cpu.cfa);
 	console.log("I: " + cpu.i);
 	console.log("MODE: " + cpu.mode);
 	console.log("STATE: " + cpu.state);
-	cpu.mode = false;
+	console.log("VOCAB: " + cpu.vocabulary);
+	console.log("TOKEN: " + cpu.token);
+	console.log("DICT.pointer: " + cpu.dict.pointer);
+	console.log("DICT.entry: " + cpu.dict.entry);
+	console.log("DSTACK: " + cpu.d.cells);
+	console.log("RSTACK: " + cpu.r.cells);
 }
 
 tracer = function(ONOFF) {
@@ -1346,6 +1406,9 @@ function strstr(t, n) {
 }
 
 function fmt(pfx, v) {
+	if(v == undefined)
+		v = "undefined";
+		
 	var txt = v.toString();
 	if(txt.length > pfx.length) {
 		return txt;
