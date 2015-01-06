@@ -36,8 +36,6 @@
 : (leave) <J drop <J drop ;
 : leave postpone (leave)  , postpone (jmp) , <J +1 here  >J >J dp++ ; immediate
 
-: sentry @entry here 2 + swap ! ;
-
 // needs does> @ ;
 : constant create , ;
 : variable create 0 ,  ;
@@ -61,3 +59,4 @@
 : last @ dup length -1 . ;
 
 : :: context >vocabulary create t >mode ;
+

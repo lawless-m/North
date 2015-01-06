@@ -67,10 +67,6 @@ CFA:   [NFA + 3]   = CODE ADDRESS OF "colon" Code Field Address
 PFA:   [NFA + 4]   = WORD_ADDRESS			 Parameter Field Address
 	   [NFA + ...] = WORD_ADDRESS
 	   [NFA + N]   = WORD_ADDRESS OF "semi"
-
-
-seeing this, I could refactor out CA of COLON and CA altogether which will save a dereference
-
 */
 
 
@@ -79,18 +75,18 @@ var header_size = 3 /* offset to the first cell after the header */
 
 nfa_to_lfa = function(n) { return n + lfa_offset; };
 nfa_to_vocab = function(n) { return n + 1; };
-nfa_tocfa = function(n) { return n + header_size; };
+nfa_to_cfa = function(n) { return n + header_size; };
 nfa_to_pfa = function(n) { return n + header_size + 1; };
 
 lfa_to_nfa = function(n) { return n - lfa_offset; };
-lfa_tocfa = function(n) { return n + 1; };
+lfa_to_cfa = function(n) { return n + 1; };
 lfa_to_pfa = function(n) { return n + 2; };
 
 cfa_to_nfa = function(n) { return n - header_size; };
 cfa_to_lfa = function(n) { return n - 1; };
 cfa_to_pfa = function(n) { return n + 1; };
 
-pfa_tocfa = function(n) { return n - 1; };
+pfa_to_cfa = function(n) { return n - 1; };
 pfa_to_lfa = function(n) { return n - 2; };
 pfa_to_vocab = function(n) { return n - header_size; };
 pfa_to_nfa = function(n) { return n - (header_size + 1); };
@@ -105,7 +101,7 @@ newDict = function() {
 			this.cells[nfa] = word;
 			this.cells[nfa+1] = vocab;
 			this.cells[nfa_to_lfa(nfa)] = this.entry;
-			var cfa = nfa_tocfa(nfa);
+			var cfa = nfa_to_cfa(nfa);
 			var pfa = nfa_to_pfa(nfa);
 			
 			/*  First entry is the Code address */
@@ -126,7 +122,7 @@ newDict = function() {
 		, cfa: function(vocab, k) { /* return the first address of the word *after* the header, if found in the vocabulary */
 			for(var nfa = this.entry; nfa; nfa = this.cells[nfa_to_lfa(nfa)]) {
 				if(this.cells[nfa] == k && this.cells[nfa + 1] == vocab) {
-						return nfa_tocfa(nfa);
+					return nfa_to_cfa(nfa);
 				}
 			}
 		}
@@ -154,23 +150,23 @@ newDict = function() {
 		}
 		
 		, vocabulary: function(pfa) {
-			return this.getString(w_a - 2);
+			return this.getString(pfa_to_nfa(pfa) + 1);
 		}
 		
 		, word: function(pfa) {
 			return this.getString(pfa_to_nfa(pfa));
 		}
 		
-		, vocab_word: function(w_a) {
-			var v = this.vocabulary(w_a);
-			if(v == undefined) {
+		, vocab_word: function(pfa) {
+			var vocab = this.vocabulary(pfa);
+			if(vocab == undefined) {
 				return;
 			}
-			var w = this.word(w_a);
-			if(w == undefined) {
+			var word = this.word(pfa);
+			if(word == undefined) {
 				return;
 			}
-			return Array(v, w);
+			return Array(vocab, word);
 		}
 		
 		, dump: function(stream) { /* for dump_dict */
@@ -189,7 +185,7 @@ newDict = function() {
 			for(var i = 0; i < (entries.length-1); i++) {
 				var nfa = entries[i];
 				var lfa = nfa_to_lfa(nfa);
-				var cfa = nfa_tocfa(nfa);
+				var cfa = nfa_to_cfa(nfa);
 				var pfa = nfa_to_pfa(nfa);
 				
 				stream.write(fmt(pfx, nfa) + " NFA  " + this.cells[nfa] + "\n");
@@ -278,45 +274,10 @@ inner = function(cpu, pointer, input) {
 	return cpu.pad;
 }
 
-colon = function(cpu) {
-	cpu.r.push(cpu.i);
-	cpu.i = cpu.cfa;
-	return next;
-}
-
-run = function(cpu) {
-	var code_pointer = cpu.dict.cells[cpu.cfa]; /* this should be the index into the cells of the javascript of that function */
-	cpu.cfa += 1;
-	if(trace) {
-		var nfa = pfa_to_nfa(code_pointer);
-		if(nfa) {
-			var wrd;
-			if(nfa == 1) {
-				wrd = cpu.dict.cells[cpu.cfa-4];
-			} else {
-				wrd = cpu.dict.cells[nfa];
-			}
-			console.log(strstr("  ", cpu.r.cells.length) + wrd);
-		}
-	}
-	return cpu.dict.cells[code_pointer]; /* return the javascript function */
-}
-
-next = function(cpu) {
-	cpu.cfa = cpu.dict.cells[cpu.i];  /* state.cpu.i is a pointer to a word */
-	cpu.i += 1;
-	return run; /* unroll to save native stackspace ? */
-}
-
-semi = function(cpu) {
-	cpu.i = cpu.r.pop();
-	return next; /* unroll to save native stackspace ? */
-}
-
 parse = function(cpu, input) {
 	var a;
 	var i;
-	a = i = cpu.dict.pointer + 10000;
+	a = i = -100; // 
 	cpu.dict.cells[a++] = cpu.dict.cfa(cpu.vocabulary, 'outer');
 	cpu.dict.cells[a++] = undefined;
 	inner(cpu, i, input);
@@ -325,16 +286,40 @@ parse = function(cpu, input) {
 	delete cpu.dict.cells[a++];
 }
 
-code_address = function(cpu, vocabulary, k) { 
-/*
-	returns the contents of the word's first cell after the header
-	if k is a $WORD in the current vocabulary
-	it should be an integer
-*/
-	var word_addr = cpu.dict.cfa(vocabulary, k);
-	if(word_addr != undefined) {
-		return cpu.dict.cells[word_addr];
+colon = function(cpu) {
+	cpu.r.push(cpu.i);
+	cpu.i = cpu.cfa;
+	return next;
+}
+
+function trace_log(cpu, code_pointer) {
+	var nfa = pfa_to_nfa(code_pointer);
+	if(nfa) {
+		if(cpu.dict.cells[nfa] == 'colon') {
+			nfa = pfa_to_nfa(cpu.cfa);
+		}
+		console.log(strstr("  ", cpu.r.cells.length) + cpu.dict.cells[nfa]);
 	}
+}
+
+run = function(cpu) {
+	var code_pointer = cpu.dict.cells[cpu.cfa];
+	cpu.cfa += 1;
+	if(trace) {
+		trace_log(cpu, code_pointer);
+	}
+	return cpu.dict.cells[code_pointer];
+}
+
+next = function(cpu) {
+	cpu.cfa = cpu.dict.cells[cpu.i];  /* state.cpu.i is a pointer to a word */
+	cpu.i += 1;
+	return run;
+}
+
+semi = function(cpu) {
+	cpu.i = cpu.r.pop();
+	return next;
 }
 
 define = function(vocabulary, dict, o) {
@@ -383,8 +368,8 @@ initFcpu = function(n) {
 		}
 	}
 	
-	var cfa = function(_word) { 
-		return States[n].dict.cfa(States[n].vocabulary, _word); 
+	var cfa = function(word) { 
+		return States[n].dict.cfa(States[n].vocabulary, word); 
 	};
 	
 	add_to_dict('compile',
@@ -804,7 +789,7 @@ initFcpu = function(n) {
 		, 'cfa': function(cpu) { /* ( PFA -- CFA) push Code Field Address for the given parameter Field Address , just arithmetic */
 			var pfa = cpu.d.pop();
 			if(isAddress(pfa)){
-				cpu.d.push(pfa_tocfa(pfa));
+				cpu.d.push(pfa_to_cfa(pfa));
 			} else {
 				cpu.d.push(undefined);
 			}
@@ -886,28 +871,17 @@ initFcpu = function(n) {
 		}
 		
 		, '*ca': function(cpu) { /* ( -- ca ) push the code address address of the current entry */
-			cpu.d.push(cpu.dict.entry + Dict.header_size);
+			cpu.d.push(nfa_to_cfa(cpu.dict.entry));
 			return cpu.next;
 		}
 		
-		, 'here>entry': function(cpu) { /* ( -- ) set the last entry to the current dictionary pointer */
-			cpu.dict.entry = cpu.dict.pointer;
-			return cpu.next;
-		}
-		
-		, '!entry': function(cpu) { /* ( -- ) set the last entry to the TOS */
+		, '>entry': function(cpu) { /* ( -- ) write to cpu.dict.entry */
 			cpu.dict.entry = cpu.d.pop();
 			return cpu.next;
 		}
 		
-		, '@entry': function(cpu) { /* ( -- daddr ) push entry address */
+		, '<entry': function(cpu) { /* ( -- daddr ) push cpu.dict.entry  */
 			cpu.d.push(cpu.dict.entry);
-			return cpu.next;
-		}
-		
-		, '<>entry': function(cpu) { /* ( -- linkaddr ) push the current link-address and then set it to the current dictionary pointer */
-			cpu.d.push(cpu.dict.entry);
-			cpu.dict.entry = cpu.dict.pointer;
 			return cpu.next;
 		}
 		
@@ -932,9 +906,7 @@ initFcpu = function(n) {
 		}
 	
 		, 'tokenerror': function(cpu) { /* ( -- ) report an unrecognised word error to the console */
-			console.log(">>");
-			console.log(cpu.token);
-			console.log("<< error unrecognised word");
+			console.log(">>" + cpu.token + "<< error unrecognised word - inside >><<");
 			return cpu.next;
 		}
 		
@@ -987,7 +959,7 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 		
-		, 'current!': function(cpu) { /* ( -- ) store the current vocabulary in the dictionary */
+		, ',vocab': function(cpu) { /* ( -- ) store the current vocabulary in the dictionary */
 			cpu.dict.cells[cpu.dict.pointer++] = cpu.vocabulary;
 			return cpu.next;
 		}
@@ -1046,7 +1018,7 @@ initFcpu = function(n) {
 	
 		, '(loop)': function(cpu) { /* ( -- ) increment the loop counter until counter is gt terminator*/
 			var tos = cpu.j.cells.length - 1;
-			var terminator = cpu.j.cells[tos-1];
+			var terminator = cpu.j.cells[tos - 1];
 			var counter = cpu.j.cells[tos];
 			counter++;
 			if(counter < terminator) {
@@ -1062,7 +1034,7 @@ initFcpu = function(n) {
 		
 		, '(+loop)': function(cpu) { /* ( -- ) increment the loop counter by tos until counter is gt terminator*/
 			var tos = cpu.j.cells.length - 1;
-			var terminator = cpu.j.cells[tos-1];
+			var terminator = cpu.j.cells[tos - 1];
 			var counter = cpu.j.cells[tos];
 			counter += cpu.d.pop();
 			if(counter < terminator) {
@@ -1081,7 +1053,7 @@ initFcpu = function(n) {
 			if(isString(body)) {
 				try {
 					var f = undefined;
-					eval('f = function(args) { ' + body + ' ; } ;');
+					eval('f = function(args){' + body + '};');
 					cpu.d.push(f);
 					cpu.d.push(true);
 				} catch(e) {
@@ -1174,11 +1146,12 @@ initFcpu = function(n) {
 		
 	add_to_dict('context', {
 		'create' : [ /* ( -- ) create a dictionary entry for the next word in the pad */
-			  cfa('@entry')
-	 	 	, cfa('here>entry')
+			  cfa('<entry')
+	 	 	, cfa('here')
+	 	 	, cfa('>entry')
 	 	 	, cfa('<word')
 	 	 	, cfa(',')
-	 	 	, cfa('current!')
+	 	 	, cfa(',vocab')
 	 	 	, cfa(',')
 		]
 		});
