@@ -79,18 +79,18 @@ var header_size = 3 /* offset to the first cell after the header */
 
 nfa_to_lfa = function(n) { return n + lfa_offset; };
 nfa_to_vocab = function(n) { return n + 1; };
-nfa_to_cfa = function(n) { return n + header_size; };
+nfa_tocfa = function(n) { return n + header_size; };
 nfa_to_pfa = function(n) { return n + header_size + 1; };
 
 lfa_to_nfa = function(n) { return n - lfa_offset; };
-lfa_to_cfa = function(n) { return n + 1; };
+lfa_tocfa = function(n) { return n + 1; };
 lfa_to_pfa = function(n) { return n + 2; };
 
 cfa_to_nfa = function(n) { return n - header_size; };
 cfa_to_lfa = function(n) { return n - 1; };
 cfa_to_pfa = function(n) { return n + 1; };
 
-pfa_to_cfa = function(n) { return n - 1; };
+pfa_tocfa = function(n) { return n - 1; };
 pfa_to_lfa = function(n) { return n - 2; };
 pfa_to_vocab = function(n) { return n - header_size; };
 pfa_to_nfa = function(n) { return n - (header_size + 1); };
@@ -105,7 +105,7 @@ newDict = function() {
 			this.cells[nfa] = word;
 			this.cells[nfa+1] = vocab;
 			this.cells[nfa_to_lfa(nfa)] = this.entry;
-			var cfa = nfa_to_cfa(nfa);
+			var cfa = nfa_tocfa(nfa);
 			var pfa = nfa_to_pfa(nfa);
 			
 			/*  First entry is the Code address */
@@ -126,7 +126,7 @@ newDict = function() {
 		, cfa: function(vocab, k) { /* return the first address of the word *after* the header, if found in the vocabulary */
 			for(var nfa = this.entry; nfa; nfa = this.cells[nfa_to_lfa(nfa)]) {
 				if(this.cells[nfa] == k && this.cells[nfa + 1] == vocab) {
-						return nfa_to_cfa(nfa);
+						return nfa_tocfa(nfa);
 				}
 			}
 		}
@@ -189,7 +189,7 @@ newDict = function() {
 			for(var i = 0; i < (entries.length-1); i++) {
 				var nfa = entries[i];
 				var lfa = nfa_to_lfa(nfa);
-				var cfa = nfa_to_cfa(nfa);
+				var cfa = nfa_tocfa(nfa);
 				var pfa = nfa_to_pfa(nfa);
 				
 				stream.write(fmt(pfx, nfa) + " NFA  " + this.cells[nfa] + "\n");
@@ -376,14 +376,14 @@ initFcpu = function(n) {
 				if(isFunction(word_list[word])) {
 					States[n].dict.define(vocab, word, 0, word_list[word]);
 				} else {
-					word_list[word].push(_cfa('(semi)'));
+					word_list[word].push(cfa('(semi)'));
 					States[n].dict.define(vocab, word, colon_ca, word_list[word]);
 				}
 			}
 		}
 	}
 	
-	var _cfa = function(_word) { 
+	var cfa = function(_word) { 
 		return States[n].dict.cfa(States[n].vocabulary, _word); 
 	};
 	
@@ -804,7 +804,7 @@ initFcpu = function(n) {
 		, 'cfa': function(cpu) { /* ( PFA -- CFA) push Code Field Address for the given parameter Field Address , just arithmetic */
 			var pfa = cpu.d.pop();
 			if(isAddress(pfa)){
-				cpu.d.push(pfa_to_cfa(pfa));
+				cpu.d.push(pfa_tocfa(pfa));
 			} else {
 				cpu.d.push(undefined);
 			}
@@ -1126,93 +1126,93 @@ initFcpu = function(n) {
 		/* secondaries */
 	add_to_dict('context', {
 		'?search' : [ /*  ( -- flag ) search the dictionaries for the word in the pad flag is not found */
-		  	  _cfa('search')
-			, _cfa('dup')
-			, _cfa('(if!rjmp)')
+		  	  cfa('search')
+			, cfa('dup')
+			, cfa('(if!rjmp)')
 			, 17
-				, _cfa('<mode')
-				, _cfa('(if!rjmp)')
+				, cfa('<mode')
+				, cfa('(if!rjmp)')
 				, 14
-					, _cfa('drop')
-					, _cfa('compile')
-					, _cfa('>vocabulary')
-					, _cfa('search')
-					, _cfa('context')
-					, _cfa('>vocabulary')
-					, _cfa('dup')
-					, _cfa('not')
-					, _cfa('(if!rjmp)')
+					, cfa('drop')
+					, cfa('compile')
+					, cfa('>vocabulary')
+					, cfa('search')
+					, cfa('context')
+					, cfa('>vocabulary')
+					, cfa('dup')
+					, cfa('not')
+					, cfa('(if!rjmp)')
 					, 4
-						, _cfa('(value)')
+						, cfa('(value)')
 						, true
-						, _cfa('>state')
+						, cfa('>state')
 			]
 		});
 		
 	add_to_dict('context', {
 		'?execute' : [ /* ( -- ) execute the word if it's immediate (i think)  */
-			  _cfa('<state')
-			, _cfa('<mode')
-			, _cfa('(value)')
+			  cfa('<state')
+			, cfa('<mode')
+			, cfa('(value)')
 			, false
-			, _cfa('>state')
-			, _cfa('=')
-			, _cfa('(if!rjmp)')
+			, cfa('>state')
+			, cfa('=')
+			, cfa('(if!rjmp)')
 			, 4
-				, _cfa('execute')
-				, _cfa('(rjmp)')
+				, cfa('execute')
+				, cfa('(rjmp)')
 				, 2
-			, _cfa(',')
+			, cfa(',')
 		]
 		
 		, '<word' : [ /* read space delimeted word from the pad */
-			_cfa('spc')
-			, _cfa('token')
-			, _cfa('<token')
+			cfa('spc')
+			, cfa('token')
+			, cfa('<token')
 		]
 		});
 		
 	add_to_dict('context', {
 		'create' : [ /* ( -- ) create a dictionary entry for the next word in the pad */
-			  _cfa('@entry')
-	 	 	, _cfa('here>entry')
-	 	 	, _cfa('<word')
-	 	 	, _cfa(',')
-	 	 	, _cfa('current!')
-	 	 	, _cfa(',')
+			  cfa('@entry')
+	 	 	, cfa('here>entry')
+	 	 	, cfa('<word')
+	 	 	, cfa(',')
+	 	 	, cfa('current!')
+	 	 	, cfa(',')
 		]
 		});
 		
 	add_to_dict('context', {
 		'outer' : [  /* ( -- ) tokenize the pad and do whatever it says */
-			  _cfa('spc')
-			, _cfa('token?')
-			, _cfa('(if!rjmp)')
+			  cfa('spc')
+			, cfa('token?')
+			, cfa('(if!rjmp)')
 			, 13
-				, _cfa('?search')
-				, _cfa('(if!rjmp)')
+				, cfa('?search')
+				, cfa('(if!rjmp)')
 				, 7
-					, _cfa('?number')
-					, _cfa('(if!rjmp)')
+					, cfa('?number')
+					, cfa('(if!rjmp)')
 					, 5
-						, _cfa('tokenerror')
-						, _cfa('(rjmp)')
+						, cfa('tokenerror')
+						, cfa('(rjmp)')
 						, 4
-				, _cfa('?execute')
-				, _cfa('(rjmp)')
+				, cfa('?execute')
+				, cfa('(rjmp)')
 				, -15
 		]
 		});
 		
 	add_to_dict('context', {
 		':' : [ /* ( -- ) create a word entry */
-		  	  _cfa('context')
-			, _cfa('>vocabulary')
-			, _cfa('create')
-			, _cfa('(colon)')
-			, _cfa(',')
-			, _cfa('t')
-			, _cfa('>mode')
+		  	  cfa('context')
+			, cfa('>vocabulary')
+			, cfa('create')
+			, cfa('(colon)')
+			, cfa(',')
+			, cfa('t')
+			, cfa('>mode')
 		]
 		});
 		
