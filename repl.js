@@ -32,7 +32,7 @@ repl.on('connection', function(client) {
 					client.write(Cpu.States[n].output);
 					Cpu.States[n].output = "";
 				}
-				
+				client.write('OK >');
 				input = "";
 			} else {
 				input += txt;
