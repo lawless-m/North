@@ -61,5 +61,3 @@
 : last @ dup length -1 . ;
 
 : :: context >vocabulary create t >mode ;
-
-: lert ;js console.log("lert"); $$

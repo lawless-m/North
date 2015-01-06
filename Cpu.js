@@ -1119,12 +1119,6 @@ initFcpu = function(n) {
 			cpu.i++; 
 			return cpu.next;
 		}
-
-//`delete this is due course
-, '!CA': function(cpu) { /* ( a -- ) store tos at the code address cell of the word */
-cpu.dict.cells[cpu.dict.entry + 2 + 1] = cpu.d.pop();
-return cpu.next;
-}
 	});
 		
 		
