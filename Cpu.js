@@ -374,6 +374,7 @@ initFcpu = function(n) {
 	
 	add_to_dict('compile',
 	{
+//BOOTSTRAP
 		';' : function(cpu) {  /* ( -- ) finish the definition of a word */
 	
 			cpu.dict.cells[cpu.dict.pointer++] = cpu.dict.cfa(cpu.vocabulary, '(semi)');
@@ -381,6 +382,7 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 
+//BOOTSTRAP
 		, '`value' : function(cpu) { /* ( -- wa("(value)") )  lookup the word address of (value) for postpone */
 			var v = cpu.dict.cfa("context", '(value)');
 			cpu.dict.cells[cpu.dict.pointer++] = v;
@@ -396,21 +398,20 @@ initFcpu = function(n) {
 				return cpu.next;
 		}
 
+//BOOTSTRAP
 		, '//' : function(cpu) { /* ( -- ) store the pad in the dictionary */
 			cpu.dict.cells[cpu.dict.pointer++] = "// " + cpu.pad;
 			cpu.pad = "";
 			return cpu.next;
 		}
-
-		, 'bp' : function(cpu) { /* breakpoint */
-				return cpu.next;
-		}
-
+		
+//BOOTSTRAP
 		, 't': function(cpu) { /* ( -- true ) */
 			cpu.d.push(true);
 			return cpu.next;
 		}
 
+//BOOTSTRAP
 		, 'f': function(cpu) { /* ( -- false ) */
 			cpu.d.push(false);
 			return cpu.next;
@@ -505,7 +506,8 @@ initFcpu = function(n) {
 			cpu.d.push(b >>> a);
 			return cpu.next;
 		}
-	
+		
+//BOOTSTRAP	
 		, '=': function(cpu) { /* ( b a - (b == a) ) equality */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
@@ -566,7 +568,8 @@ initFcpu = function(n) {
 			cpu.d.push(v - 1);
 			return cpu.next;
 		}
-	
+		
+//BOOTSTRAP	
 		, 'here': function(cpu) { /* ( - DP )  push dictionary pointer */
 			cpu.d.push(cpu.dict.pointer);
 			return cpu.next;
@@ -623,12 +626,14 @@ initFcpu = function(n) {
 			cpu.d.push(b);
 			return cpu.next;
 		}
-	
+		
+//BOOTSTRAP	
 		, 'dup': function(cpu) { /* ( a -- a a ) duplicate the tos */
 			cpu.d.push(cpu.d.top());
 			return cpu.next;
 		}
 	
+//BOOTSTRAP
 		, 'tuck': function(cpu) { /* ( b a -- a b a ) copy tos to 3rd place, could just be : tuck swap over ; */
 			var a = cpu.d.pop();
 			var b = cpu.d.pop();
@@ -654,13 +659,13 @@ initFcpu = function(n) {
 			cpu.r.push(b);
 			return cpu.next;
 		}
-	
+//BOOTSTRAP
 		, 'context': function(cpu) { /* ( -- "context" ) push "context" */
 			cpu.d.push('context');
 			return cpu.next;
 		}
 	
-	
+//BOOTSTRAP	
 		, 'compile': function(cpu) { /* ( -- "compile" ) push "compile" */
 			cpu.d.push('compile');
 			return cpu.next;
@@ -671,6 +676,7 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 	
+//BOOTSTRAP	
 		, 'execute': function(cpu) { /* ( -- wa ) run the word with its address on the tos */
 			cpu.cfa = cpu.d.pop(); // cfa 
 			return cpu.run;
@@ -686,13 +692,15 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 	
+//BOOTSTRAP	
 		, 'token': function(cpu) { /* ( token -- ) extract everything in cpu.pad until the terminator, and put it in the dictionary */
 			var tok_text = tokenize(cpu.d.pop(), cpu.pad);
 			cpu.token = tok_text[0];
 			cpu.pad = tok_text[1];
 			return cpu.next;
 		}
-	
+		
+//BOOTSTRAP	
 		, 'token?': function(cpu) { /* ( token -- ( true | false ) ) extract everything in cpu.pad until the terminator, put it in the dictionary and report if you found anything */
 			var terminator = cpu.d.pop();
 			if(cpu.pad == "") {
@@ -705,12 +713,14 @@ initFcpu = function(n) {
 			cpu.d.push(true);
 			return cpu.next;
 		}
-	
+		
+//BOOTSTRAP	
 		, '<token': function(cpu) {
 			cpu.d.push(cpu.token);
 			return cpu.next;
 		}
 	
+//BOOTSTRAP	
 		, '(value)': function(cpu) { /* ( -- n ) push the contents of the next cell */
 			cpu.d.push(cpu.dict.cells[cpu.i]);
 			cpu.i++;
@@ -735,6 +745,7 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 		
+//BOOTSTRAP
 		, ',': function(cpu) { /* ( val -- ) store tos in the next cell */
 			cpu.dict.cells[cpu.dict.pointer++] = cpu.d.pop();
 			return cpu.next;
@@ -754,7 +765,7 @@ initFcpu = function(n) {
 			cpu.dict.pointer++;
 			return cpu.next;
 		}
-	
+//BOOTSTRAP	
 		, 'drop': function(cpu) { /* ( a -- ) drop the tos */
 			cpu.d.pop();
 			return cpu.next;
@@ -816,7 +827,8 @@ initFcpu = function(n) {
 			}
 			return cpu.next;
 		}
-		  
+		
+//BOOTSTRAP		  
 		, 'search': function(cpu) { /* ( -- (false wa) | true ) search the dictionary for "word" push the wa and a flag for (not found) */
 			var word_addr = cpu.dict.cfa(cpu.vocabulary, cpu.token);
 	
@@ -829,21 +841,25 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 	
+//BOOTSTRAP	
 		, '<mode': function(cpu) { /* ( -- mode ) push the current mode */
 			cpu.d.push(cpu.mode);
 			return cpu.next;
 		}
 		
+//BOOTSTRAP
 		, '>mode': function(cpu) {  /* ( mode -- ) set the current mode */
 			cpu.mode = (cpu.d.pop() == true);
 			return cpu.next;
 		}
 	
+//BOOTSTRAP	
 		, '<state': function(cpu) { /* ( -- state ) push the current state */
 			cpu.d.push(cpu.state);
 			return cpu.next;
 		}
 		
+//BOOTSTRAP	
 		, '>state': function(cpu) { /* ( state -- ) set the current state */
 			var v = cpu.d.pop();
 			cpu.state = (v == true);
@@ -855,11 +871,13 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 		
+//BOOTSTRAP	
 		, '>vocabulary': function(cpu) { /* ( vocabulary -- ) set the current vocabulary */
 			cpu.vocabulary = cpu.d.pop();
 			return cpu.next;
 		}
 	
+//BOOTSTRAP	
 		, 'not': function(cpu) { /* ( v -- !v ) boolean not */
 			var v = cpu.d.pop();
 			if(v == true) { /* might be excessive */
@@ -875,16 +893,19 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 		
+//BOOTSTRAP	
 		, '>entry': function(cpu) { /* ( -- ) write to cpu.dict.entry */
 			cpu.dict.entry = cpu.d.pop();
 			return cpu.next;
 		}
 		
+//BOOTSTRAP	
 		, '<entry': function(cpu) { /* ( -- daddr ) push cpu.dict.entry  */
 			cpu.d.push(cpu.dict.entry);
 			return cpu.next;
 		}
 		
+//BOOTSTRAP		
 		, '?number': function(cpu) { /* ( -- flag (maybe value) ) depending on the mode, push a flag and the value or store it in the dictionary */
 	
 			if(!isNumber(cpu.token)) {
@@ -904,7 +925,8 @@ initFcpu = function(n) {
 			cpu.d.push(false);
 			return cpu.next;
 		}
-	
+		
+//BOOTSTRAP		
 		, 'tokenerror': function(cpu) { /* ( -- ) report an unrecognised word error to the console */
 			console.log(">>" + cpu.token + "<< error unrecognised word - inside >><<");
 			return cpu.next;
@@ -954,11 +976,13 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 		
+//BOOTSTRAP
 		, 'spc': function(cpu) { /* ( -- " " ) push a space character */
 			cpu.d.push(' ');
 			return cpu.next;
 		}
 		
+//BOOTSTRAP
 		, ',vocab': function(cpu) { /* ( -- ) store the current vocabulary in the dictionary */
 			cpu.dict.cells[cpu.dict.pointer++] = cpu.vocabulary;
 			return cpu.next;
@@ -983,6 +1007,7 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 		
+//BOOTSTRAP		
 		, '(if!rjmp)': function(cpu) { /* ( flag -- ) if flag is false, jump by the delta in next cell, or just skip over */
 			var flag = cpu.d.pop();
 			if(flag == true) {
@@ -993,11 +1018,13 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 		
+//BOOTSTRAP		
 		, '(rjmp)': function(cpu) { /* ( -- ) unconditional jump by the delta in the next cell */
 			cpu.i += cpu.dict.cells[cpu.i];
 			return cpu.next;
 		}
 		
+//BOOTSTRAP		
 		, '(colon)': function(cpu) { /* ( -- caColon ) push code address of colon for use in : */
 			cpu.d.push(cpu.dict.ca(cpu.vocabulary, 'colon'));
 			return cpu.next;
@@ -1097,6 +1124,7 @@ initFcpu = function(n) {
 		
 		/* secondaries */
 	add_to_dict('context', {
+//BOOTSTRAPsecondaries
 		'?search' : [ /*  ( -- flag ) search the dictionaries for the word in the pad flag is not found */
 		  	  cfa('search')
 			, cfa('dup')
@@ -1122,6 +1150,7 @@ initFcpu = function(n) {
 		});
 		
 	add_to_dict('context', {
+//BOOTSTRAPsecondaries
 		'?execute' : [ /* ( -- ) execute the word if it's immediate (i think)  */
 			  cfa('<state')
 			, cfa('<mode')
@@ -1137,6 +1166,7 @@ initFcpu = function(n) {
 			, cfa(',')
 		]
 		
+//BOOTSTRAPsecondaries
 		, '<word' : [ /* read space delimeted word from the pad */
 			cfa('spc')
 			, cfa('token')
@@ -1144,6 +1174,7 @@ initFcpu = function(n) {
 		]
 		});
 		
+//BOOTSTRAPsecondaries
 	add_to_dict('context', {
 		'create' : [ /* ( -- ) create a dictionary entry for the next word in the pad */
 			  cfa('<entry')
@@ -1156,6 +1187,7 @@ initFcpu = function(n) {
 		]
 		});
 		
+//BOOTSTRAPsecondaries
 	add_to_dict('context', {
 		'outer' : [  /* ( -- ) tokenize the pad and do whatever it says */
 			  cfa('spc')
@@ -1176,7 +1208,8 @@ initFcpu = function(n) {
 				, -15
 		]
 		});
-		
+	
+//BOOTSTRAPsecondaries	
 	add_to_dict('context', {
 		':' : [ /* ( -- ) create a word entry */
 		  	  cfa('context')

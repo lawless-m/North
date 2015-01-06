@@ -1,9 +1,3 @@
-: ,, , , ; 
-
-// take the next token, look up its word address and insert it into the dictionary as a (value)
-: postpone <word wa `value , , ; immediate
-
-: `c <word ca postpone (value) ,, ; immediate
 
 // push " 
 : quote 34 chr ;
@@ -11,8 +5,9 @@
 // push the buffer up to "
 : " quote token <token ;
 
-// store the buffer up to "
-: ." " postpone (value) ,, ; immediate
+// take the next token, look up its word address and insert it into the dictionary as a (value)
+: postpone <word wa `value , , ; immediate
+
 
 // store the jmp, push the address of the jmp target, move the dp past it
 : if postpone (if!jmp) , here dp++ ; immediate
@@ -23,15 +18,22 @@
 // ( whereToStoreTarget -- newWhereToStoreTarget)
 : else postpone (jmp) , here tuck +1 ! dp++  ; immediate
 
+// store the buffer up to "
+: ." " postpone (value) , , ; immediate
+
+: ;code  ." $$" token <token (js) drop postpone (;code) , , ; immediate
+
+: ;js ." $$" token <token  ." ; return cpu.next;" + (js) if here swap , dup -1 swap ! f >mode then ; immediate
+
 : begin here ; immediate
-: until postpone (if!jmp) ,, ; immediate
+: until postpone (if!jmp) , , ; immediate
 
 : while postpone (if!jmp) , here dp++ ; immediate
-: repeat swap postpone (jmp) ,, here !  ; immediate
+: repeat swap postpone (jmp) , , here !  ; immediate
 
 : do  postpone (do) , here 0 >J ; immediate
-: loop  postpone (loop) ,, <J dup 0 > if begin <J here ! -1 dup 0 = until then drop ; immediate
-: +loop postpone (+loop) ,, ; immediate
+: loop  postpone (loop) , , <J dup 0 > if begin <J here ! -1 dup 0 = until then drop ; immediate
+: +loop postpone (+loop) , , ; immediate
 
 : (leave) <J drop <J drop ;
 : leave postpone (leave)  , postpone (jmp) , <J +1 here  >J >J dp++ ; immediate
@@ -40,9 +42,6 @@
 : constant create , ;
 : variable create 0 ,  ;
 
-: ;code  ." $$" token <token (js) drop postpone (;code) ,, ; immediate
-
-: ;js ." $$" token <token  ." ; return cpu.next;" + (js) if here swap , dup -1 swap ! f >mode then ; immediate
 
 : . ;js  var k = cpu.d.pop(); cpu.d.push(cpu.d.pop()[k]) $$
 : last ;js var k = cpu.d.pop(); cpu.d.push(cpu.d.pop().lastIndexOf(k)) $$
