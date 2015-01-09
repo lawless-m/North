@@ -574,7 +574,13 @@ initFcpu = function(n) {
 			cpu.d.push(cpu.dict.pointer);
 			return cpu.next;
 		}
-	
+
+//BOOTSTRAP	
+		, 'there' : function(cpu) { /* (NEWDP - ) pop to the dictionary pointer */
+			cpu.dict.pointer = cpu.d.pop();
+			return cpu.next;
+		}
+
 		, '<R': function(cpu) { /* ( - (top of R) ) // pop from R stack to data stack */
 			var a = cpu.r.pop();
 			cpu.d.push(a);
@@ -797,17 +803,17 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 	
-		, 'cfa': function(cpu) { /* ( PFA -- CFA) push Code Field Address for the given parameter Field Address , just arithmetic */
-			var pfa = cpu.d.pop();
-			if(isAddress(pfa)){
-				cpu.d.push(pfa_to_cfa(pfa));
+		, 'cfa': function(cpu) { /* ( NFA -- CFA) push Code Field Address for the given Name Field Address , just arithmetic */
+			var nfa = cpu.d.pop();
+			if(isAddress(nfa)){
+				cpu.d.push(nfa_to_cfa(nfa));
 			} else {
 				cpu.d.push(undefined);
 			}
 			return cpu.next;
 		}
 	
-		, 'lfa': function(cpu) { /* ( PFA -- LFA) push Link Field Address for the given parameter Field Address , just arithmetic */
+		, 'lfa': function(cpu) { /* ( PFA -- LFA) push Link Field Address for the given Parameter Field Address , just arithmetic */
 			var pfa = cpu.d.pop();
 			if(isAddress(pfa)){
 				cpu.d.push(pfa_to_lfa(pfa));
@@ -1118,6 +1124,12 @@ initFcpu = function(n) {
 			cpu.i++; 
 			return cpu.next;
 		}
+
+		, '(create)' : function(cpu) {
+			// cpu.cfa currently points to the pfa
+			cpu.d.push(cpu.cfa);
+			return cpu.semi;
+		}
 	});
 		
 		
@@ -1174,6 +1186,27 @@ initFcpu = function(n) {
 		]
 		});
 		
+	add_to_dict('context', {
+		'createOLD' : [ /* ( -- ) create a dictionary entry for the next word in the pad */
+			  cfa('<entry')
+	 	 	, cfa('here')
+	 	 	, cfa('>entry')
+	 	 	, cfa('<word')
+	 	 	, cfa(',')
+	 	 	, cfa(',vocab')
+	 	 	, cfa(',')
+		]
+		});
+/*
+push entry
+	push here, write it to entry
+	push word, to dict
+	write vocab to dict
+write it to dict
+push ca('create'), write it to dict
+move dp past PFA
+
+*/
 //BOOTSTRAPsecondaries
 	add_to_dict('context', {
 		'create' : [ /* ( -- ) create a dictionary entry for the next word in the pad */
@@ -1184,6 +1217,10 @@ initFcpu = function(n) {
 	 	 	, cfa(',')
 	 	 	, cfa(',vocab')
 	 	 	, cfa(',')
+			, cfa('(value)')
+	 		, States[n].dict.ca('context', '(create)') // notice the ca not cfa
+	 	 	, cfa(',')
+	 	 	, cfa('dp++')
 		]
 		});
 		
@@ -1214,7 +1251,10 @@ initFcpu = function(n) {
 		':' : [ /* ( -- ) create a word entry */
 		  	  cfa('context')
 			, cfa('>vocabulary')
-			, cfa('create')
+			, cfa('kreate')
+			, cfa('<entry')
+			, cfa('cfa')
+			, cfa('there')
 			, cfa('(colon)')
 			, cfa(',')
 			, cfa('t')
