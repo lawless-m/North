@@ -1130,6 +1130,12 @@ initFcpu = function(n) {
 			cpu.d.push(cpu.cfa);
 			return cpu.semi;
 		}
+		, '(does>)' : function(cpu) {
+			// cpu.cfa currently points to the pfa
+			cpu.d.push(cpu.cfa);
+			cpu.i++;
+			return cpu.next;
+		}
 	});
 		
 		
@@ -1223,6 +1229,11 @@ move dp past PFA
 	 	 	, cfa('dp++')
 		]
 		});
+//BOOTSTRAPsecondaries
+	add_to_dict('context', {
+		'does>' : [ /* ( -- ) fill dictionary with runtime info */
+		]
+		});
 		
 //BOOTSTRAPsecondaries
 	add_to_dict('context', {
@@ -1249,9 +1260,7 @@ move dp past PFA
 //BOOTSTRAPsecondaries	
 	add_to_dict('context', {
 		':' : [ /* ( -- ) create a word entry */
-		  	  cfa('context')
-			, cfa('>vocabulary')
-			, cfa('kreate')
+			  cfa('create')
 			, cfa('<entry')
 			, cfa('cfa')
 			, cfa('there')
