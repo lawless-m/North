@@ -322,25 +322,6 @@ semi = function(cpu) {
 	return next;
 }
 
-define = function(vocabulary, dict, o) {
-	if(o.word == undefined) return;
-	v = o.vocabulary || state.cpu.vocabulary;
-	if(o.code == undefined) {
-		o.ca = state.dict.ca(vocabulary, 'colon');
-		o.words.push(state.dict.cfa(vocabulary, '(semi)'));
-	} else {
-		o.ca = 0;
-		o.words = [o.code];
-	}
-	return state.dict.define(v, o.word, o.ca, o.words);
-}
-
-secondary = function(Dict, state, word, body, vocabulary) { 
-	body.push(Dict.cfa(state.dict, state.cpu.vocabulary, '(semi)'))
-	var word_addr = Dict.define(state.dict, vocabulary || state.cpu.vocabulary, word, Dict.ca(state.dict, state.cpu.vocabulary, 'colon'), body)
-	return word_addr
-}
-
 execute = function(cpu, word_addr) {
 	var c_a = cpu.dict.cells[word_addr]
 	var f = cpu.dict.cells[c_a]
@@ -1030,12 +1011,6 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 		
-//BOOTSTRAP		
-		, '(colon)': function(cpu) { /* ( -- caColon ) push code address of colon for use in : */
-			cpu.d.push(cpu.dict.ca(cpu.vocabulary, 'colon'));
-			return cpu.next;
-		}
-		
 		, '(next_cell)': function(cpu) { /* ( t i -- ) setup do .. loop */
 			cpu.d.push(cpu.cfa + 1)
 			return cpu.next;
@@ -1192,27 +1167,6 @@ initFcpu = function(n) {
 		]
 		});
 		
-	add_to_dict('context', {
-		'createOLD' : [ /* ( -- ) create a dictionary entry for the next word in the pad */
-			  cfa('<entry')
-	 	 	, cfa('here')
-	 	 	, cfa('>entry')
-	 	 	, cfa('<word')
-	 	 	, cfa(',')
-	 	 	, cfa(',vocab')
-	 	 	, cfa(',')
-		]
-		});
-/*
-push entry
-	push here, write it to entry
-	push word, to dict
-	write vocab to dict
-write it to dict
-push ca('create'), write it to dict
-move dp past PFA
-
-*/
 //BOOTSTRAPsecondaries
 	add_to_dict('context', {
 		'create' : [ /* ( -- ) create a dictionary entry for the next word in the pad */
@@ -1256,6 +1210,9 @@ move dp past PFA
 				, -15
 		]
 		});
+
+	add_to_dict('context', {
+		',cfa' : []});
 	
 //BOOTSTRAPsecondaries	
 	add_to_dict('context', {
@@ -1264,7 +1221,9 @@ move dp past PFA
 			, cfa('<entry')
 			, cfa('cfa')
 			, cfa('there')
-			, cfa('(colon)')
+			, cfa('(value)')
+			, 'colon'
+			, cfa('ca')
 			, cfa(',')
 			, cfa('t')
 			, cfa('>mode')
