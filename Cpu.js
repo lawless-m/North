@@ -96,7 +96,7 @@ newDict = function() {
 		  cells: {0:0, 1:0, 2:0, 3:0, 4:0}
 		, pointer: 1
 		, entry: 0
-		, define: function(vocab, word, code_field, body) {
+		, define: function(vocab, word, code_field_word, body) {
 			var nfa = this.pointer;
 			this.cells[nfa] = word;
 			this.cells[nfa+1] = vocab;
@@ -105,8 +105,8 @@ newDict = function() {
 			var pfa = nfa_to_pfa(nfa);
 			
 			/*  First entry is the Code address */
-			if(code_field) { /* Word is a secondary, CA=ca, the address of the code to execute */
-				this.cells[cfa] = code_field;
+			if(code_field_word) { /* Word is a secondary, CA=ca, the address of the code to execute */
+				this.cells[cfa] = this.ca(vocab, code_field_word);
 				this.pointer = pfa;
 				for(var i = 0; i < body.length; i++) {
 					this.cells[this.pointer++] = body[i];
@@ -286,12 +286,6 @@ parse = function(cpu, input) {
 	delete cpu.dict.cells[a++];
 }
 
-colon = function(cpu) {
-	cpu.r.push(cpu.i);
-	cpu.i = cpu.cfa;
-	return next;
-}
-
 function trace_log(cpu, code_pointer) {
 	var nfa = pfa_to_nfa(code_pointer);
 	if(nfa) {
@@ -335,15 +329,14 @@ allot = function(cpu, n) {
 }
 
 initFcpu = function(n) {
-	var colon_ca = nfa_to_pfa(States[n].dict.define(States[n].vocabulary, 'colon', 0, colon));
 	var add_to_dict = function(vocab, word_list) {
 		for(var word in word_list) {
-			if(word_list.hasOwnProperty(word)) {
+			if(word_list.hasOwnProperty(word)) { // skip methods
 				if(isFunction(word_list[word])) {
-					States[n].dict.define(vocab, word, 0, word_list[word]);
+					States[n].dict.define(vocab, word, undefined, word_list[word]);
 				} else {
 					word_list[word].push(cfa('(semi)'));
-					States[n].dict.define(vocab, word, colon_ca, word_list[word]);
+					States[n].dict.define(vocab, word, 'colon', word_list[word]);
 				}
 			}
 		}
@@ -374,7 +367,13 @@ initFcpu = function(n) {
 
 	add_to_dict('context', 
 	{
-		'forget': function(cpu) { /* ( -- ) forget the last defined word */
+		'colon': function(cpu) { /* execute a wordlist */
+			cpu.r.push(cpu.i);
+			cpu.i = cpu.cfa;
+			return next;
+		} 
+
+		, 'forget': function(cpu) { /* ( -- ) forget the last defined word */
 				cpu.dict.forget();
 				return cpu.next;
 		}
@@ -767,7 +766,7 @@ initFcpu = function(n) {
 			cpu.d.push(cpu.dict.cfa(cpu.vocabulary, cpu.d.pop()));
 			return cpu.next;
 		 }
-	
+//BOOTSTRAP	
 		, 'ca': function(cpu) {/* ( "word" -- ca|undefined ) push code address or undefined on tos */
 			cpu.d.push(cpu.dict.ca(cpu.vocabulary, cpu.d.pop()));
 			return cpu.next;
@@ -1100,12 +1099,13 @@ initFcpu = function(n) {
 			return cpu.next;
 		}
 
-		, '(create)' : function(cpu) {
-			// cpu.cfa currently points to the pfa
+//BOOTSTRAP
+		, '<cfa*' : function(cpu) { /* push the currrent value of cpu.cfa and exit (points to PFA in create)  */
 			cpu.d.push(cpu.cfa);
 			return cpu.semi;
 		}
-		, '(does>)' : function(cpu) {
+
+		, '' : function(cpu) {
 			// cpu.cfa currently points to the pfa
 			cpu.d.push(cpu.cfa);
 			cpu.i++;
@@ -1178,7 +1178,8 @@ initFcpu = function(n) {
 	 	 	, cfa(',vocab')
 	 	 	, cfa(',')
 			, cfa('(value)')
-	 		, States[n].dict.ca('context', '(create)') // notice the ca not cfa
+			, '<cfa*'
+	 		, cfa('ca')
 	 	 	, cfa(',')
 	 	 	, cfa('dp++')
 		]
@@ -1186,6 +1187,7 @@ initFcpu = function(n) {
 //BOOTSTRAPsecondaries
 	add_to_dict('context', {
 		'does>' : [ /* ( -- ) fill dictionary with runtime info */
+		// ghhhh	
 		]
 		});
 		
