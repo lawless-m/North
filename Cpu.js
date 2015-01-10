@@ -205,7 +205,7 @@ newDict = function() {
 					}
 				} else {
 					/* secondary */
-					stream.write(fmt(pfx, cfa) + " CFA  " + fmt(pfx, this.cells[cfa]) + "\n");
+					stream.write(fmt(pfx, cfa) + " CFA  " + fmt(pfx, this.cells[cfa]) + " - " + this.cells[cfa_to_nfa(this.cells[cfa]-1)] + "\n");
 					stream.write(fmt(pfx, pfa) + " PFA  ");
 					stream.write(fmt(pfx, this.cells[pfa]) + " - " + this.cells[cfa_to_nfa(this.cells[pfa])] + "\n");
 					var prev_a_val = 0;
@@ -289,7 +289,7 @@ parse = function(cpu, input) {
 function trace_log(cpu, code_pointer) {
 	var nfa = pfa_to_nfa(code_pointer);
 	if(nfa) {
-		if(cpu.dict.cells[nfa] == 'colon') {
+		if(cpu.dict.cells[nfa] in ('colon', '(does>)')) {
 			nfa = pfa_to_nfa(cpu.cfa);
 		}
 		console.log(strstr("  ", cpu.r.cells.length) + cpu.dict.cells[nfa]);
@@ -370,6 +370,13 @@ initFcpu = function(n) {
 		'colon': function(cpu) { /* execute a wordlist */
 			cpu.r.push(cpu.i);
 			cpu.i = cpu.cfa;
+			return next;
+		}
+ 
+		, '(does>)': function(cpu) { /* execute a wordlist */
+			cpu.r.push(cpu.i);
+			cpu.d.push(cpu.cfa);
+			cpu.i = cpu.cfa + 1;
 			return next;
 		} 
 
@@ -1104,13 +1111,6 @@ initFcpu = function(n) {
 			cpu.d.push(cpu.cfa);
 			return cpu.semi;
 		}
-
-		, '' : function(cpu) {
-			// cpu.cfa currently points to the pfa
-			cpu.d.push(cpu.cfa);
-			cpu.i++;
-			return cpu.next;
-		}
 	});
 		
 		
@@ -1181,13 +1181,6 @@ initFcpu = function(n) {
 			, '<cfa*'
 	 		, cfa('ca')
 	 	 	, cfa(',')
-	 	 	, cfa('dp++')
-		]
-		});
-//BOOTSTRAPsecondaries
-	add_to_dict('context', {
-		'does>' : [ /* ( -- ) fill dictionary with runtime info */
-		// ghhhh	
 		]
 		});
 		
@@ -1213,24 +1206,35 @@ initFcpu = function(n) {
 		]
 		});
 
-	add_to_dict('context', {
-		',cfa' : []});
-	
 //BOOTSTRAPsecondaries	
 	add_to_dict('context', {
 		':' : [ /* ( -- ) create a word entry */
-			  cfa('create')
+			  cfa('(value)')
+			, 'colon'
+			, cfa('create')
 			, cfa('<entry')
 			, cfa('cfa')
 			, cfa('there')
-			, cfa('(value)')
-			, 'colon'
 			, cfa('ca')
 			, cfa(',')
 			, cfa('t')
 			, cfa('>mode')
-		]
-		});
+		]});
+
+//BOOTSTRAPsecondaries
+	add_to_dict('context', {
+		'does>' : [ /* ( -- ) fill dictionary with runtime info */
+			  cfa('(value)')
+			, '(does>)'
+			, cfa('<entry')
+			, cfa('cfa')
+			, cfa('there')
+			, cfa('ca')
+			, cfa(',')
+			, cfa('dp++')
+			, cfa('t')
+			, cfa('>mode')
+		]});
 		
 	read_dict(States[n], "base.nr");
 }
